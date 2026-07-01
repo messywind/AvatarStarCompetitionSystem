@@ -82,7 +82,28 @@ async function submit() {
   font-size: 1.5rem; font-weight: 700; color: #fff;
   background: linear-gradient(135deg, var(--primary), #59a7ff);
   flex: none;
+  animation: avatar-in 0.34s var(--ease-soft) both;
 }
 .avatar.admin { background: linear-gradient(135deg, #ff7a3c, var(--accent-2)); }
 .uname { font-size: 1.2rem; font-weight: 600; margin-bottom: 0.3rem; }
+
+@keyframes avatar-in {
+  from { opacity: 0; transform: scale(0.9); }
+  to { opacity: 1; transform: none; }
+}
+
+@media (max-width: 520px) {
+  .info-card {
+    align-items: flex-start;
+  }
+  .account-page .btn {
+    width: 100%;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .avatar {
+    animation: none;
+  }
+}
 </style>

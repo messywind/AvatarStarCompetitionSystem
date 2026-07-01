@@ -54,7 +54,25 @@ async function submit() {
 
 <style scoped>
 .auth-page { display: flex; justify-content: center; padding-top: 3rem; }
-.auth-card { width: min(420px, 100%); }
-.auth-logo { display: block; height: 40px; margin: 0 auto 1.2rem; }
+.auth-card { width: min(420px, 100%); animation: auth-in 0.34s var(--ease-soft) both; }
+.auth-logo { display: block; height: 40px; margin: 0 auto 1.2rem; transition: transform 0.24s var(--ease-soft); }
+.auth-card:hover .auth-logo { transform: translateY(-2px); }
 .switch { margin-top: 1rem; text-align: center; }
+
+@keyframes auth-in {
+  from { opacity: 0; transform: translateY(12px); }
+  to { opacity: 1; transform: none; }
+}
+
+@media (max-width: 520px) {
+  .auth-page {
+    padding-top: 1.5rem;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .auth-card {
+    animation: none;
+  }
+}
 </style>

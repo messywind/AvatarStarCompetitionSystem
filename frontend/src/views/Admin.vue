@@ -492,72 +492,78 @@ onMounted(async () => {
     </div>
 
     <!-- ===================== TOURNAMENT MODAL ===================== -->
-    <div v-if="tourModal" class="modal-backdrop" @click.self="tourModal = false">
-      <div class="modal" style="width: min(520px, 100%)">
-        <div class="row">
-          <h2 style="margin: 0">{{ tourEditingId ? '编辑赛事' : '新增赛事' }}</h2>
-          <span class="spacer"></span>
-          <button class="btn ghost sm" @click="tourModal = false">取消</button>
+    <Transition name="modal-fade">
+      <div v-if="tourModal" class="modal-backdrop" @click.self="tourModal = false">
+        <div class="modal tour-modal">
+          <div class="row">
+            <h2 style="margin: 0">{{ tourEditingId ? '编辑赛事' : '新增赛事' }}</h2>
+            <span class="spacer"></span>
+            <button class="btn ghost sm" @click="tourModal = false">取消</button>
+          </div>
+          <div class="field"><label>赛事名称 *</label><input v-model="tourForm.name" maxlength="128" placeholder="例如：百变兵团第二届选花杯" /></div>
+          <div class="field"><label>赛事简介</label><textarea v-model="tourForm.description" maxlength="2000" placeholder="可选"></textarea></div>
+          <div class="field">
+            <label>报名截止时间 *</label>
+            <input v-model="tourForm.registration_deadline" type="datetime-local" />
+            <p class="muted tiny" style="margin-top:0.35rem">截止后才会向所有人公开参赛战队与对阵图；截止前用户只能看到自己的战队。</p>
+          </div>
+          <button class="btn accent" style="width: 100%" @click="saveTour">
+            {{ tourEditingId ? '保存修改' : '创建赛事' }}
+          </button>
         </div>
-        <div class="field"><label>赛事名称 *</label><input v-model="tourForm.name" maxlength="128" placeholder="例如：百变兵团第二届选花杯" /></div>
-        <div class="field"><label>赛事简介</label><textarea v-model="tourForm.description" maxlength="2000" placeholder="可选"></textarea></div>
-        <div class="field">
-          <label>报名截止时间 *</label>
-          <input v-model="tourForm.registration_deadline" type="datetime-local" />
-          <p class="muted tiny" style="margin-top:0.35rem">截止后才会向所有人公开参赛战队与对阵图；截止前用户只能看到自己的战队。</p>
-        </div>
-        <button class="btn accent" style="width: 100%" @click="saveTour">
-          {{ tourEditingId ? '保存修改' : '创建赛事' }}
-        </button>
       </div>
-    </div>
+    </Transition>
 
     <!-- ===================== CREATE TEAM MODAL ===================== -->
-    <div v-if="creating" class="modal-backdrop" @click.self="creating = false">
-      <div class="modal">
-        <div class="row">
-          <h2 style="margin: 0">新增战队</h2>
-          <span class="spacer"></span>
-          <button class="btn ghost sm" @click="creating = false">取消</button>
+    <Transition name="modal-fade">
+      <div v-if="creating" class="modal-backdrop" @click.self="creating = false">
+        <div class="modal">
+          <div class="row">
+            <h2 style="margin: 0">新增战队</h2>
+            <span class="spacer"></span>
+            <button class="btn ghost sm" @click="creating = false">取消</button>
+          </div>
+          <p class="muted">录入到「{{ selectedTournament?.name }}」；可直接指定初始审核状态。</p>
+          <div class="field"><label>队伍名称 *</label><input v-model="createForm.name" maxlength="128" placeholder="例如：烈焰星辰" /></div>
+          <div class="field"><label>队长 *</label><input v-model="createForm.captain" maxlength="64" placeholder="队长称呼" /></div>
+          <div class="field">
+            <label>初始状态</label>
+            <select v-model="createForm.status" class="status-select">
+              <option value="approved">已通过</option>
+              <option value="pending">审核中</option>
+              <option value="rejected">未通过</option>
+            </select>
+          </div>
+          <h4>参赛阵容 *</h4>
+          <RosterEditor v-model="createForm.players" />
+          <div class="field" style="margin-top: 1rem"><label>作战宣言</label><textarea v-model="createForm.declaration" maxlength="2000"></textarea></div>
+          <button class="btn accent" style="width: 100%" :disabled="!canCreate" @click="saveCreate">
+            新增战队
+          </button>
         </div>
-        <p class="muted">录入到「{{ selectedTournament?.name }}」；可直接指定初始审核状态。</p>
-        <div class="field"><label>队伍名称 *</label><input v-model="createForm.name" maxlength="128" placeholder="例如：烈焰星辰" /></div>
-        <div class="field"><label>队长 *</label><input v-model="createForm.captain" maxlength="64" placeholder="队长称呼" /></div>
-        <div class="field">
-          <label>初始状态</label>
-          <select v-model="createForm.status" style="width: 200px">
-            <option value="approved">已通过</option>
-            <option value="pending">审核中</option>
-            <option value="rejected">未通过</option>
-          </select>
-        </div>
-        <h4>参赛阵容 *</h4>
-        <RosterEditor v-model="createForm.players" />
-        <div class="field" style="margin-top: 1rem"><label>作战宣言</label><textarea v-model="createForm.declaration" maxlength="2000"></textarea></div>
-        <button class="btn accent" style="width: 100%" :disabled="!canCreate" @click="saveCreate">
-          新增战队
-        </button>
       </div>
-    </div>
+    </Transition>
 
     <!-- ===================== EDIT MODAL ===================== -->
-    <div v-if="editing" class="modal-backdrop" @click.self="editing = null">
-      <div class="modal">
-        <div class="row">
-          <h2 style="margin: 0">编辑战队 · {{ editing.name }}</h2>
-          <span class="spacer"></span>
-          <button class="btn ghost sm" @click="editing = null">取消</button>
+    <Transition name="modal-fade">
+      <div v-if="editing" class="modal-backdrop" @click.self="editing = null">
+        <div class="modal">
+          <div class="row">
+            <h2 style="margin: 0">编辑战队 · {{ editing.name }}</h2>
+            <span class="spacer"></span>
+            <button class="btn ghost sm" @click="editing = null">取消</button>
+          </div>
+          <div class="field"><label>队伍名称</label><input v-model="editForm.name" /></div>
+          <div class="field"><label>队长</label><input v-model="editForm.captain" /></div>
+          <h4>参赛阵容</h4>
+          <RosterEditor v-model="editForm.players" />
+          <div class="field" style="margin-top: 1rem"><label>作战宣言</label><textarea v-model="editForm.declaration"></textarea></div>
+          <button class="btn accent" style="width: 100%" :disabled="editValidation.errors.length > 0" @click="saveEdit">
+            保存修改
+          </button>
         </div>
-        <div class="field"><label>队伍名称</label><input v-model="editForm.name" /></div>
-        <div class="field"><label>队长</label><input v-model="editForm.captain" /></div>
-        <h4>参赛阵容</h4>
-        <RosterEditor v-model="editForm.players" />
-        <div class="field" style="margin-top: 1rem"><label>作战宣言</label><textarea v-model="editForm.declaration"></textarea></div>
-        <button class="btn accent" style="width: 100%" :disabled="editValidation.errors.length > 0" @click="saveEdit">
-          保存修改
-        </button>
       </div>
-    </div>
+    </Transition>
   </div>
 </template>
 
@@ -572,11 +578,116 @@ onMounted(async () => {
 .declaration-cell { max-width: 220px; color: var(--muted); }
 .actions { display: flex; gap: 0.3rem; flex-wrap: wrap; }
 
-.editor-rounds { display: flex; gap: 1rem; overflow-x: auto; padding: 1rem 0; align-items: flex-start; }
-.editor-round { min-width: 280px; }
+.editor-rounds { display: flex; gap: 1rem; overflow-x: auto; padding: 1rem 0; align-items: flex-start; scroll-snap-type: x proximity; -webkit-overflow-scrolling: touch; }
+.editor-round { min-width: 280px; scroll-snap-align: start; animation: editor-round-in 0.3s var(--ease-soft) both; }
 .round-name { width: 140px; font-weight: 700; }
 .editor-match { border-top: 1px solid var(--border); padding: 0.7rem 0; }
 .mrow { display: flex; align-items: center; gap: 0.4rem; margin-bottom: 0.4rem; }
 .vs { color: var(--accent); font-weight: 800; font-size: 0.8rem; }
 .winner-sel { width: 130px; }
+.tour-modal { width: min(520px, 100%); }
+.status-select { width: 200px; }
+
+@keyframes editor-round-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@media (max-width: 760px) {
+  .container > .row:first-child {
+    align-items: flex-start;
+  }
+  .container > .row:first-child h1 {
+    width: 100%;
+  }
+  .tabs {
+    width: 100%;
+    overflow-x: auto;
+    padding-bottom: 0.1rem;
+    scrollbar-width: none;
+  }
+  .tabs::-webkit-scrollbar { display: none; }
+  .tabs .btn {
+    flex: 0 0 auto;
+  }
+  .scope-bar {
+    align-items: stretch;
+  }
+  .scope-bar label,
+  .scope-bar select {
+    width: 100% !important;
+  }
+  .toolbar {
+    align-items: stretch;
+  }
+  .toolbar label,
+  .toolbar select {
+    width: 100% !important;
+  }
+  .toolbar .btn {
+    flex: 1 1 auto;
+  }
+  .actions .btn {
+    min-width: 74px;
+  }
+  .declaration-cell {
+    min-width: 180px;
+  }
+  .editor-rounds {
+    margin-left: -0.2rem;
+    margin-right: -0.2rem;
+  }
+  .editor-round {
+    min-width: min(88vw, 340px);
+  }
+  .editor-round > .row {
+    align-items: stretch;
+  }
+  .round-name {
+    width: 100%;
+  }
+  .mrow {
+    display: grid;
+    grid-template-columns: 1fr;
+    align-items: stretch;
+  }
+  .vs {
+    text-align: center;
+  }
+  .winner-sel,
+  .status-select {
+    width: 100%;
+  }
+}
+
+@media (max-width: 520px) {
+  .tabs .btn {
+    min-width: 112px;
+  }
+  .toolbar .spacer,
+  .scope-bar .spacer {
+    display: none;
+  }
+  .actions {
+    min-width: 160px;
+  }
+  .actions .btn {
+    flex: 1 1 72px;
+  }
+  .modal h2 {
+    font-size: 1.25rem;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .editor-round {
+    animation: none;
+  }
+}
 </style>

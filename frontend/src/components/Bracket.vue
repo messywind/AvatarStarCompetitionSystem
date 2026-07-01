@@ -68,7 +68,12 @@ const champion = computed(() => {
 </template>
 
 <style scoped>
-.bracket-scroll { overflow-x: auto; padding: 0.5rem 0.25rem 1rem; }
+.bracket-scroll {
+  overflow-x: auto;
+  padding: 0.5rem 0.25rem 1rem;
+  -webkit-overflow-scrolling: touch;
+  scroll-snap-type: x proximity;
+}
 .bracket {
   display: flex;
   align-items: stretch;
@@ -80,7 +85,13 @@ const champion = computed(() => {
   display: flex;
   flex-direction: column;
   min-width: 190px;
+  scroll-snap-align: start;
+  animation: round-in 0.34s var(--ease-soft) both;
 }
+.round:nth-child(2) { animation-delay: 60ms; }
+.round:nth-child(3) { animation-delay: 120ms; }
+.round:nth-child(4) { animation-delay: 180ms; }
+.round:nth-child(5) { animation-delay: 240ms; }
 .round-title {
   text-align: center;
   font-weight: 600;
@@ -110,6 +121,12 @@ const champion = computed(() => {
   overflow: hidden;
   background: #fff;
   box-shadow: var(--shadow-sm);
+  transition: transform 0.18s var(--ease-out), box-shadow 0.18s var(--ease-out), border-color 0.18s var(--ease-out);
+}
+.match:hover {
+  transform: translateY(-2px);
+  border-color: rgba(0, 113, 227, 0.22);
+  box-shadow: var(--shadow-md);
 }
 .team {
   display: flex;
@@ -117,6 +134,7 @@ const champion = computed(() => {
   gap: 0.55rem;
   padding: 0.5rem 0.7rem;
   font-size: 0.9rem;
+  transition: background 0.2s var(--ease-out), color 0.2s var(--ease-out);
 }
 .team + .team { border-top: 1px solid var(--border); }
 .seed {
@@ -168,7 +186,72 @@ const champion = computed(() => {
   background: linear-gradient(135deg, #fff5e0, #ffe6b8);
   border: 1px solid var(--accent-2);
   box-shadow: 0 8px 26px rgba(255, 149, 0, 0.25);
+  animation: champion-in 0.38s var(--ease-soft) both;
 }
 .trophy { font-size: 1.8rem; }
 .champ-name { font-weight: 800; color: #b8560a; text-align: center; }
+
+@keyframes round-in {
+  from {
+    opacity: 0;
+    transform: translateX(12px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes champion-in {
+  from {
+    opacity: 0;
+    transform: scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@media (max-width: 720px) {
+  .bracket-scroll {
+    padding-bottom: 1.1rem;
+  }
+  .bracket {
+    gap: 30px;
+    min-height: 220px;
+  }
+  .round {
+    min-width: 168px;
+  }
+  .round-title {
+    padding-bottom: 0.65rem;
+  }
+  .team {
+    min-height: 40px;
+    padding: 0.5rem 0.6rem;
+  }
+  .round.has-conn .match-slot::before {
+    left: -30px;
+    width: 15px;
+  }
+  .round.has-conn .match-slot::after {
+    left: -15px;
+    width: 15px;
+  }
+}
+
+@media (hover: none) {
+  .match:hover {
+    transform: none;
+    box-shadow: var(--shadow-sm);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .round,
+  .champion {
+    animation: none;
+  }
+}
 </style>

@@ -95,6 +95,7 @@ function removePlayer(target) {
   border-radius: 12px;
   padding: 0.8rem 1rem;
   margin-bottom: 1rem;
+  transition: border-color 0.18s var(--ease-out), background 0.18s var(--ease-out);
 }
 .summary-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.6rem; }
 .count { font-weight: 800; color: var(--danger); }
@@ -110,9 +111,76 @@ function removePlayer(target) {
 .group-label button { margin-left: auto; }
 .empty { padding: 0.5rem 0; }
 
-.player-row { display: flex; gap: 0.5rem; margin-bottom: 0.5rem; align-items: center; }
+.player-row {
+  display: flex;
+  gap: 0.5rem;
+  margin-bottom: 0.5rem;
+  align-items: center;
+  animation: row-in 0.22s var(--ease-soft) both;
+}
 .pl-name { flex: 1; }
 .pl-prof { width: 120px; flex: none; }
 
 .err-list { margin: 0.8rem 0 0; padding-left: 1.1rem; color: var(--danger); font-size: 0.85rem; line-height: 1.7; }
+
+@keyframes row-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@media (max-width: 620px) {
+  .summary {
+    padding: 0.85rem;
+  }
+  .summary-head {
+    align-items: flex-start;
+    gap: 0.75rem;
+  }
+  .prof-counts {
+    gap: 0.4rem;
+  }
+  .group-label {
+    flex-wrap: wrap;
+    align-items: flex-start;
+  }
+  .group-label button {
+    width: 100%;
+    margin-left: 0;
+  }
+  .player-row {
+    display: grid;
+    grid-template-columns: 1fr 112px;
+    gap: 0.5rem;
+    padding: 0.65rem;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    background: #fff;
+  }
+  .pl-name,
+  .pl-prof {
+    width: 100%;
+  }
+  .player-row .btn {
+    grid-column: 1 / -1;
+    width: 100%;
+  }
+}
+
+@media (max-width: 390px) {
+  .player-row {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .player-row {
+    animation: none;
+  }
+}
 </style>

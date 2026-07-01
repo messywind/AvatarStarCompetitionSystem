@@ -6,6 +6,7 @@ import { PROFESSIONS } from '../roster'
 import { formatDeadline, countdown } from '../time'
 import { useAuthStore } from '../stores/auth'
 import Bracket from '../components/Bracket.vue'
+import { tournamentVisual } from '../tournamentAssets'
 
 const auth = useAuthStore()
 
@@ -19,6 +20,7 @@ const rounds = ref([])
 const teamMap = ref({})
 const loading = ref(false)
 const activeTeam = ref(null)
+const detailTournament = ref(null)
 
 const selected = computed(() => tournaments.value.find((t) => t.id === selectedTid.value))
 const isPublic = computed(() => !!selected.value?.results_public)
@@ -66,6 +68,14 @@ function subs(players) {
   return players.filter((p) => p.is_substitute)
 }
 
+function selectTournament(tournament) {
+  selectedTid.value = tournament.id
+}
+
+function openTournamentDetail(tournament) {
+  detailTournament.value = tournament
+}
+
 watch(selectedTid, loadContent)
 onMounted(async () => {
   await loadTournaments()
@@ -78,43 +88,111 @@ onMounted(async () => {
     <h1>赛事浏览</h1>
     <p class="muted">报名截止后公布全部参赛战队与晋级对阵；报名期间仅可查看自己的战队。</p>
 
-    <!-- Tournament tabs -->
-    <div v-if="tournaments.length" class="tour-tabs">
-      <button
-        v-for="t in tournaments"
+    <!-- Tournament cards -->
+    <div v-if="tournaments.length" class="tournament-grid">
+      <article
+        v-for="(t, i) in tournaments"
         :key="t.id"
-        class="tour-tab"
+        class="tournament-card"
         :class="{ active: t.id === selectedTid }"
-        @click="selectedTid = t.id"
+        :style="{ '--i': i }"
+        @click="selectTournament(t)"
       >
-        {{ t.name }}
-        <span class="tour-state" :class="t.results_public ? 'done' : 'live'">
-          {{ t.results_public ? '已公布' : '报名中' }}
-        </span>
-      </button>
+        <div class="tournament-main">
+          <img :src="tournamentVisual(t).avatar" :alt="`${t.name} 头像`" class="tournament-avatar" />
+          <div class="tournament-copy">
+            <div class="row">
+              <h3>{{ t.name }}</h3>
+              <span class="spacer"></span>
+              <span class="tour-state" :class="t.results_public ? 'done' : 'live'">
+                {{ t.results_public ? '已公布' : '报名中' }}
+              </span>
+            </div>
+            <p class="muted">{{ t.description || '百变兵团官方赛事，等待战队集结。' }}</p>
+          </div>
+        </div>
+
+        <div class="tournament-meta">
+          <span>
+            <strong>{{ t.team_count }}</strong>
+            支战队
+          </span>
+          <span>
+            截止：<strong>{{ formatDeadline(t.registration_deadline) }}</strong>
+          </span>
+        </div>
+
+        <button class="btn accent detail-btn" @click.stop="openTournamentDetail(t)">比赛详情</button>
+      </article>
     </div>
 
-    <template v-if="selected">
-      <!-- Registration still open: gated -->
-      <div v-if="!isPublic">
-        <div class="panel gate">
-          <div class="gate-icon">🔒</div>
-          <h2>报名进行中</h2>
-          <p class="muted">
-            该赛事将于 <strong>{{ formatDeadline(selected.registration_deadline) }}</strong>
-            （{{ countdown(selected.registration_deadline) }}）报名截止，届时公布全部参赛战队与对阵图。
+    <Transition name="content-swap" mode="out-in">
+      <div v-if="selected" :key="`${selectedTid}-${isPublic}`">
+        <!-- Registration still open: gated -->
+        <div v-if="!isPublic">
+          <div class="panel gate">
+            <div class="gate-icon">🔒</div>
+            <h2>报名进行中</h2>
+            <p class="muted">
+              该赛事将于 <strong>{{ formatDeadline(selected.registration_deadline) }}</strong>
+              （{{ countdown(selected.registration_deadline) }}）报名截止，届时公布全部参赛战队与对阵图。
+            </p>
+          </div>
+
+          <template v-if="auth.isAuthenticated">
+            <h2 class="teams-title">我的战队 <span class="muted">（报名期间仅你可见）</span></h2>
+            <p v-if="loading" class="muted">加载中…</p>
+            <p v-else-if="!myTeams.length" class="muted">你还没有在该赛事报名的战队。</p>
+            <div class="team-grid">
+              <div
+                v-for="(t, i) in myTeams"
+                :key="t.id"
+                class="card team-card"
+                :style="{ '--i': i }"
+                @click="activeTeam = t"
+              >
+                <div class="row">
+                  <h3 style="margin: 0">{{ t.name }}</h3>
+                  <span class="badge" :class="t.status">{{ STATUS_LABEL[t.status] }}</span>
+                  <span class="spacer"></span>
+                  <span class="muted small">队长 {{ t.captain }}</span>
+                </div>
+                <p v-if="t.declaration" class="declaration">「{{ t.declaration }}」</p>
+                <div class="players">
+                  <span v-for="p in formal(t.players)" :key="p.id" class="chip">
+                    <span class="dot" :style="{ background: `var(--prof-${p.profession})` }"></span>
+                    {{ p.nickname }}
+                  </span>
+                </div>
+              </div>
+            </div>
+          </template>
+          <p v-else class="muted login-hint">
+            <RouterLink to="/login">登录</RouterLink> 后可在报名期间查看自己已提交的战队。
           </p>
         </div>
 
-        <template v-if="auth.isAuthenticated">
-          <h2 class="teams-title">我的战队 <span class="muted">（报名期间仅你可见）</span></h2>
+        <!-- Registration closed: public -->
+        <template v-else>
+          <section class="panel bracket-panel">
+            <h2>赛事对阵图</h2>
+            <Bracket :rounds="rounds" :team-map="teamMap" />
+          </section>
+
+          <h2 class="teams-title">参赛战队 <span class="muted">（{{ teams.length }} 支）</span></h2>
           <p v-if="loading" class="muted">加载中…</p>
-          <p v-else-if="!myTeams.length" class="muted">你还没有在该赛事报名的战队。</p>
+          <p v-else-if="!teams.length" class="muted">暂无通过审核的战队。</p>
+
           <div class="team-grid">
-            <div v-for="t in myTeams" :key="t.id" class="card team-card" @click="activeTeam = t">
+            <div
+              v-for="(t, i) in teams"
+              :key="t.id"
+              class="card team-card"
+              :style="{ '--i': i }"
+              @click="activeTeam = t"
+            >
               <div class="row">
                 <h3 style="margin: 0">{{ t.name }}</h3>
-                <span class="badge" :class="t.status">{{ STATUS_LABEL[t.status] }}</span>
                 <span class="spacer"></span>
                 <span class="muted small">队长 {{ t.captain }}</span>
               </div>
@@ -125,115 +203,313 @@ onMounted(async () => {
                   {{ p.nickname }}
                 </span>
               </div>
+              <p v-if="subs(t.players).length" class="muted small">替补 {{ subs(t.players).length }} 人</p>
             </div>
           </div>
         </template>
-        <p v-else class="muted login-hint">
-          <RouterLink to="/login">登录</RouterLink> 后可在报名期间查看自己已提交的战队。
-        </p>
       </div>
-
-      <!-- Registration closed: public -->
-      <template v-else>
-        <section class="panel bracket-panel">
-          <h2>赛事对阵图</h2>
-          <Bracket :rounds="rounds" :team-map="teamMap" />
-        </section>
-
-        <h2 class="teams-title">参赛战队 <span class="muted">（{{ teams.length }} 支）</span></h2>
-        <p v-if="loading" class="muted">加载中…</p>
-        <p v-else-if="!teams.length" class="muted">暂无通过审核的战队。</p>
-
-        <div class="team-grid">
-          <div v-for="t in teams" :key="t.id" class="card team-card" @click="activeTeam = t">
-            <div class="row">
-              <h3 style="margin: 0">{{ t.name }}</h3>
-              <span class="spacer"></span>
-              <span class="muted small">队长 {{ t.captain }}</span>
-            </div>
-            <p v-if="t.declaration" class="declaration">「{{ t.declaration }}」</p>
-            <div class="players">
-              <span v-for="p in formal(t.players)" :key="p.id" class="chip">
-                <span class="dot" :style="{ background: `var(--prof-${p.profession})` }"></span>
-                {{ p.nickname }}
-              </span>
-            </div>
-            <p v-if="subs(t.players).length" class="muted small">替补 {{ subs(t.players).length }} 人</p>
-          </div>
-        </div>
-      </template>
-    </template>
+    </Transition>
 
     <!-- Detail modal -->
-    <div v-if="activeTeam" class="modal-backdrop" @click.self="activeTeam = null">
-      <div class="modal">
-        <div class="row">
-          <h2 style="margin: 0">{{ activeTeam.name }}</h2>
-          <span class="spacer"></span>
-          <button class="btn ghost sm" @click="activeTeam = null">关闭</button>
-        </div>
-        <p class="muted">队长：{{ activeTeam.captain }}</p>
-        <p v-if="activeTeam.declaration" class="declaration">「{{ activeTeam.declaration }}」</p>
+    <Transition name="modal-fade">
+      <div v-if="activeTeam" class="modal-backdrop" @click.self="activeTeam = null">
+        <div class="modal">
+          <div class="row">
+            <h2 style="margin: 0">{{ activeTeam.name }}</h2>
+            <span class="spacer"></span>
+            <button class="btn ghost sm" @click="activeTeam = null">关闭</button>
+          </div>
+          <p class="muted">队长：{{ activeTeam.captain }}</p>
+          <p v-if="activeTeam.declaration" class="declaration">「{{ activeTeam.declaration }}」</p>
 
-        <h4>正式队员</h4>
-        <div class="table-wrap">
-          <table>
-            <thead><tr><th>称呼</th><th>职业</th></tr></thead>
-            <tbody>
-              <tr v-for="p in formal(activeTeam.players)" :key="p.id">
-                <td>{{ p.nickname }}</td>
-                <td><span :class="'prof-' + p.profession">{{ p.profession }}</span></td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
-
-        <template v-if="subs(activeTeam.players).length">
-          <h4>替补队员</h4>
+          <h4>正式队员</h4>
           <div class="table-wrap">
             <table>
               <thead><tr><th>称呼</th><th>职业</th></tr></thead>
               <tbody>
-                <tr v-for="p in subs(activeTeam.players)" :key="p.id">
+                <tr v-for="p in formal(activeTeam.players)" :key="p.id">
                   <td>{{ p.nickname }}</td>
                   <td><span :class="'prof-' + p.profession">{{ p.profession }}</span></td>
                 </tr>
               </tbody>
             </table>
           </div>
-        </template>
+
+          <template v-if="subs(activeTeam.players).length">
+            <h4>替补队员</h4>
+            <div class="table-wrap">
+              <table>
+                <thead><tr><th>称呼</th><th>职业</th></tr></thead>
+                <tbody>
+                  <tr v-for="p in subs(activeTeam.players)" :key="p.id">
+                    <td>{{ p.nickname }}</td>
+                    <td><span :class="'prof-' + p.profession">{{ p.profession }}</span></td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </template>
+        </div>
       </div>
-    </div>
+    </Transition>
+
+    <!-- Tournament poster modal -->
+    <Transition name="modal-fade">
+      <div v-if="detailTournament" class="modal-backdrop poster-backdrop" @click.self="detailTournament = null">
+        <div class="modal poster-modal">
+          <div class="row poster-head">
+            <div>
+              <h2>{{ detailTournament.name }}</h2>
+              <p class="muted">{{ detailTournament.description || '比赛详情海报' }}</p>
+            </div>
+            <span class="spacer"></span>
+            <button class="btn ghost sm" @click="detailTournament = null">关闭</button>
+          </div>
+          <img
+            :src="tournamentVisual(detailTournament).poster"
+            :alt="`${detailTournament.name} 海报`"
+            class="poster-image"
+          />
+        </div>
+      </div>
+    </Transition>
   </div>
 </template>
 
 <style scoped>
-.tour-tabs { display: flex; gap: 0.6rem; flex-wrap: wrap; margin: 1.25rem 0 1.75rem; }
-.tour-tab {
-  display: inline-flex; align-items: center; gap: 0.5rem;
-  padding: 0.5rem 1rem; border-radius: 980px;
-  border: 1px solid var(--border-strong); background: #fff;
-  color: var(--text); font-weight: 500; font-size: 0.9rem; cursor: pointer;
-  transition: all 0.15s;
+.tournament-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+  gap: 1rem;
+  margin: 1.25rem 0 1.75rem;
 }
-.tour-tab:hover { border-color: var(--primary); }
-.tour-tab.active { background: var(--primary); color: #fff; border-color: var(--primary); }
+.tournament-card {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  padding: 1.15rem;
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+  background: var(--panel);
+  box-shadow: var(--shadow-sm);
+  cursor: pointer;
+  animation: card-rise 0.38s var(--ease-soft) both;
+  animation-delay: calc(min(var(--i), 8) * 55ms);
+  transition: border-color 0.18s var(--ease-out), box-shadow 0.18s var(--ease-out), transform 0.18s var(--ease-out);
+}
+.tournament-card:hover { border-color: rgba(0, 113, 227, 0.38); }
+.tournament-card.active {
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px rgba(0, 113, 227, 0.12), var(--shadow-sm);
+}
+.tournament-main {
+  display: grid;
+  grid-template-columns: 72px 1fr;
+  gap: 1rem;
+  align-items: start;
+}
+.tournament-avatar {
+  width: 72px;
+  height: 72px;
+  border-radius: 18px;
+  object-fit: cover;
+  border: 1px solid var(--border);
+  transition: transform 0.28s var(--ease-soft), filter 0.28s var(--ease-out);
+}
+.tournament-card:hover .tournament-avatar { transform: scale(1.035); }
+.tournament-copy h3 {
+  margin: 0;
+  font-size: 1.08rem;
+  line-height: 1.35;
+}
+.tournament-copy p {
+  margin: 0.35rem 0 0;
+  line-height: 1.6;
+}
+.tournament-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.55rem;
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+.tournament-meta span {
+  display: inline-flex;
+  align-items: center;
+  min-height: 28px;
+  padding: 0.25rem 0.65rem;
+  border-radius: 999px;
+  background: var(--bg-2);
+}
+.tournament-meta strong { color: var(--text); }
+.detail-btn {
+  width: 100%;
+  margin-top: auto;
+  padding: 0.72rem 1.25rem;
+}
 .tour-state { font-size: 0.68rem; padding: 1px 7px; border-radius: 999px; font-weight: 700; }
 .tour-state.live { background: rgba(255, 149, 0, 0.18); color: #a85e00; }
 .tour-state.done { background: rgba(52, 199, 89, 0.2); color: #1f7a34; }
-.tour-tab.active .tour-state { background: rgba(255, 255, 255, 0.25); color: #fff; }
 
 .gate { text-align: center; padding: 2.5rem 1.5rem; }
-.gate-icon { font-size: 2.4rem; margin-bottom: 0.4rem; }
+.gate-icon {
+  font-size: 2.4rem;
+  margin-bottom: 0.4rem;
+  animation: lock-pop 0.42s var(--ease-soft) both;
+}
 .gate p { max-width: 560px; margin: 0.4rem auto 0; }
 .login-hint { margin-top: 1rem; }
 
 .bracket-panel { margin: 0 0 2rem; }
 .teams-title { margin-top: 1.5rem; }
 .team-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 1rem; margin-top: 1rem; }
-.team-card { cursor: pointer; transition: transform 0.12s, box-shadow 0.12s; }
-.team-card:hover { transform: translateY(-3px); box-shadow: var(--shadow-md); }
+.team-card {
+  cursor: pointer;
+  animation: card-rise 0.35s var(--ease-soft) both;
+  animation-delay: calc(min(var(--i), 10) * 45ms);
+}
+.team-card:hover { border-color: rgba(0, 113, 227, 0.24); }
 .declaration { color: var(--accent); font-style: italic; margin: 0.5rem 0; }
 .players { display: flex; gap: 0.4rem; flex-wrap: wrap; margin-top: 0.5rem; }
 .small { font-size: 0.8rem; }
+
+.poster-backdrop { padding: 1rem; }
+.poster-modal {
+  width: min(760px, 100%);
+  padding: 1rem;
+}
+.poster-head {
+  align-items: flex-start;
+  padding: 0.45rem 0.45rem 0.9rem;
+}
+.poster-head h2 { margin-bottom: 0.25rem; }
+.poster-head p { margin: 0; }
+.poster-image {
+  display: block;
+  width: min(100%, 560px);
+  max-height: 78vh;
+  margin: 0 auto;
+  border-radius: var(--radius-sm);
+  object-fit: contain;
+  background: #05070f;
+}
+
+.content-swap-enter-active,
+.content-swap-leave-active {
+  transition: opacity 0.18s var(--ease-out), transform 0.2s var(--ease-out), filter 0.2s var(--ease-out);
+}
+.content-swap-enter-from {
+  opacity: 0;
+  transform: translateY(8px);
+  filter: blur(4px);
+}
+.content-swap-leave-to {
+  opacity: 0;
+  transform: translateY(-4px);
+}
+
+@keyframes card-rise {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes lock-pop {
+  from {
+    opacity: 0;
+    transform: translateY(8px) scale(0.9);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@media (max-width: 560px) {
+  .tournament-grid {
+    grid-template-columns: 1fr;
+    gap: 0.85rem;
+  }
+  .tournament-card {
+    padding: 1rem;
+  }
+  .tournament-main {
+    grid-template-columns: 58px 1fr;
+    gap: 0.8rem;
+  }
+  .tournament-avatar {
+    width: 58px;
+    height: 58px;
+    border-radius: 14px;
+  }
+  .tournament-copy .row {
+    align-items: flex-start;
+  }
+  .tournament-copy h3 {
+    flex: 1 1 100%;
+  }
+  .tournament-meta {
+    gap: 0.4rem;
+  }
+  .tournament-meta span {
+    width: 100%;
+    justify-content: space-between;
+  }
+  .team-grid {
+    grid-template-columns: 1fr;
+  }
+  .team-card .row h3 {
+    flex: 1 1 100%;
+  }
+  .gate {
+    padding: 2rem 1rem;
+  }
+  .bracket-panel {
+    padding-left: 0.85rem;
+    padding-right: 0.85rem;
+  }
+  .poster-backdrop {
+    align-items: center;
+  }
+  .poster-modal {
+    padding: 0.75rem;
+    max-height: 94vh;
+  }
+  .poster-head {
+    padding: 0.2rem 0.2rem 0.65rem;
+  }
+  .poster-head h2 {
+    font-size: 1.1rem;
+  }
+  .poster-image {
+    width: 100%;
+    max-height: 78vh;
+  }
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .tournament-card:hover,
+  .team-card:hover {
+    transform: translateY(-3px);
+    box-shadow: var(--shadow-md);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tournament-card,
+  .team-card,
+  .gate-icon {
+    animation: none;
+  }
+
+  .content-swap-enter-active,
+  .content-swap-leave-active {
+    transition: none;
+  }
+}
 </style>

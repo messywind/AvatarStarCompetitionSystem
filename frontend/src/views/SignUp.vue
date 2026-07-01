@@ -181,7 +181,14 @@ onMounted(async () => {
 </template>
 
 <style scoped>
-.signup-grid { display: grid; grid-template-columns: 1.6fr 1fr; gap: 1.5rem; margin-top: 1.5rem; align-items: start; }
+.signup-grid { display: grid; grid-template-columns: minmax(0, 1.6fr) minmax(300px, 1fr); gap: 1.5rem; margin-top: 1.5rem; align-items: start; }
+.signup-grid > .panel,
+.side .panel {
+  animation: panel-lift 0.34s var(--ease-soft) both;
+}
+.side .panel {
+  animation-delay: 80ms;
+}
 .roster-title { margin-top: 1.5rem; }
 .empty-note { color: var(--muted); padding: 1rem 0; text-align: center; }
 .deadline-note {
@@ -200,5 +207,46 @@ onMounted(async () => {
 .tour-tag { color: var(--primary); font-weight: 600; }
 .prof-mini { display: flex; gap: 0.35rem; flex-wrap: wrap; margin: 0.4rem 0; }
 .chip.sm { font-size: 0.72rem; padding: 0.12rem 0.45rem; }
-@media (max-width: 880px) { .signup-grid { grid-template-columns: 1fr; } }
+
+@keyframes panel-lift {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@media (max-width: 880px) {
+  .signup-grid { grid-template-columns: 1fr; }
+  .side { order: -1; }
+}
+
+@media (max-width: 560px) {
+  .deadline-note {
+    line-height: 1.65;
+  }
+  .deadline-note .cd {
+    display: block;
+    margin: 0.25rem 0 0;
+  }
+  .my-team .row {
+    align-items: flex-start;
+  }
+  .my-team .row strong {
+    flex: 1 1 100%;
+  }
+  .my-team .btn {
+    width: 100%;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .signup-grid > .panel,
+  .side .panel {
+    animation: none;
+  }
+}
 </style>
