@@ -27,6 +27,12 @@ export const useAuthStore = defineStore('auth', {
       this.user = data.user
       this._persist()
     },
+    async changePassword(oldPassword, newPassword) {
+      await api.post('/auth/change-password', {
+        old_password: oldPassword,
+        new_password: newPassword,
+      })
+    },
     logout() {
       this.token = ''
       this.user = null

@@ -7,6 +7,7 @@ import Register from '../views/Register.vue'
 import SignUp from '../views/SignUp.vue'
 import Admin from '../views/Admin.vue'
 import Browse from '../views/Browse.vue'
+import Account from '../views/Account.vue'
 
 const routes = [
   { path: '/', name: 'home', component: Home },
@@ -14,6 +15,7 @@ const routes = [
   { path: '/register', name: 'register', component: Register },
   { path: '/signup', name: 'signup', component: SignUp, meta: { requiresAuth: true } },
   { path: '/browse', name: 'browse', component: Browse },
+  { path: '/account', name: 'account', component: Account, meta: { requiresAuth: true } },
   { path: '/admin', name: 'admin', component: Admin, meta: { requiresAdmin: true } },
 ]
 

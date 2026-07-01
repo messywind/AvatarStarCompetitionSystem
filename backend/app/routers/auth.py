@@ -5,7 +5,7 @@ from ..auth import create_access_token, hash_password, verify_password
 from ..database import get_db
 from ..deps import get_current_user
 from ..models import User
-from ..schemas import Token, UserLogin, UserOut, UserRegister
+from ..schemas import PasswordChange, Token, UserLogin, UserOut, UserRegister
 
 router = APIRouter(prefix="/api/auth", tags=["auth"])
 
@@ -39,3 +39,17 @@ def login(payload: UserLogin, db: Session = Depends(get_db)):
 @router.get("/me", response_model=UserOut)
 def me(user: User = Depends(get_current_user)):
     return user
+
+
+@router.post("/change-password", status_code=204)
+def change_password(
+    payload: PasswordChange,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    if not verify_password(payload.old_password, user.password_hash):
+        raise HTTPException(status_code=400, detail="当前密码不正确")
+    if verify_password(payload.new_password, user.password_hash):
+        raise HTTPException(status_code=400, detail="新密码不能与旧密码相同")
+    user.password_hash = hash_password(payload.new_password)
+    db.commit()

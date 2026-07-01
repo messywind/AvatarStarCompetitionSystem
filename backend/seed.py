@@ -4,9 +4,11 @@ Run after the API has created the tables at least once:
     python seed.py
 """
 
+from datetime import datetime, timedelta
+
 from app.auth import hash_password
 from app.database import Base, SessionLocal, engine, ensure_database_exists
-from app.models import Player, Team, User
+from app.models import Player, Team, Tournament, User
 
 DEMO_TEAMS = [
     {
@@ -52,10 +54,22 @@ def run():
             db.commit()
             db.refresh(owner)
 
+        tournament = db.query(Tournament).order_by(Tournament.id).first()
+        if not tournament:
+            tournament = Tournament(
+                name="百变兵团第一届选花杯",
+                description="百变兵团官方赛事 · 第一届选花杯",
+                registration_deadline=datetime.now() + timedelta(days=30),
+            )
+            db.add(tournament)
+            db.commit()
+            db.refresh(tournament)
+
         for spec in DEMO_TEAMS:
             if db.query(Team).filter(Team.name == spec["name"]).first():
                 continue
             team = Team(
+                tournament_id=tournament.id,
                 name=spec["name"],
                 captain=spec["captain"],
                 declaration=spec["declaration"],

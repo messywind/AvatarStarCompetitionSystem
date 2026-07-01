@@ -1,23 +1,100 @@
 <script setup>
-import { ref, reactive, computed, onMounted } from 'vue'
+import { ref, reactive, computed, onMounted, watch } from 'vue'
 import api from '../api'
 import { toast } from '../toast'
 import { PROFESSIONS, validateRoster } from '../roster'
+import { formatDeadline, toLocalInput } from '../time'
 import RosterEditor from '../components/RosterEditor.vue'
 import Bracket from '../components/Bracket.vue'
 
 const STATUS_LABEL = { pending: '审核中', approved: '已通过', rejected: '未通过' }
 
-const tab = ref('teams') // teams | bracket
+const tab = ref('tournaments') // tournaments | teams | bracket
 const teams = ref([])
 const filter = ref('')
 const loading = ref(false)
 
+// ------- Tournaments -------
+const tournaments = ref([])
+const selectedTid = ref(null)
+const selectedTournament = computed(() => tournaments.value.find((t) => t.id === selectedTid.value))
+
+async function loadTournaments() {
+  try {
+    const { data } = await api.get('/admin/tournaments')
+    tournaments.value = data
+    if (data.length && !data.some((t) => t.id === selectedTid.value)) {
+      selectedTid.value = data[0].id
+    }
+  } catch (e) {
+    toast(e.message || '加载赛事失败', 'error')
+  }
+}
+
+const tourModal = ref(false)
+const tourEditingId = ref(null)
+const tourForm = reactive({ name: '', description: '', registration_deadline: '' })
+
+function openTourCreate() {
+  tourEditingId.value = null
+  tourForm.name = ''
+  tourForm.description = ''
+  tourForm.registration_deadline = ''
+  tourModal.value = true
+}
+function openTourEdit(t) {
+  tourEditingId.value = t.id
+  tourForm.name = t.name
+  tourForm.description = t.description || ''
+  tourForm.registration_deadline = toLocalInput(t.registration_deadline)
+  tourModal.value = true
+}
+async function saveTour() {
+  if (!tourForm.name.trim()) return toast('请填写赛事名称', 'error')
+  if (!tourForm.registration_deadline) return toast('请设置报名截止时间', 'error')
+  const payload = {
+    name: tourForm.name.trim(),
+    description: tourForm.description.trim(),
+    registration_deadline: tourForm.registration_deadline,
+  }
+  try {
+    if (tourEditingId.value) {
+      await api.put(`/admin/tournaments/${tourEditingId.value}`, payload)
+      toast('赛事已更新', 'success')
+    } else {
+      const { data } = await api.post('/admin/tournaments', payload)
+      selectedTid.value = data.id
+      toast('赛事已创建', 'success')
+    }
+    tourModal.value = false
+    await loadTournaments()
+  } catch (e) {
+    toast(e.message || '保存失败', 'error')
+  }
+}
+async function deleteTour(t) {
+  if (!confirm(`确定删除赛事「${t.name}」？其下所有战队与对阵图都会被删除，且不可撤销。`)) return
+  try {
+    await api.delete(`/admin/tournaments/${t.id}`)
+    toast('赛事已删除', 'info')
+    if (selectedTid.value === t.id) selectedTid.value = null
+    await loadTournaments()
+  } catch (e) {
+    toast(e.message || '删除失败', 'error')
+  }
+}
+
 // ------- Teams -------
 async function loadTeams() {
+  if (!selectedTid.value) {
+    teams.value = []
+    return
+  }
   loading.value = true
   try {
-    const { data } = await api.get('/admin/teams', { params: filter.value ? { status: filter.value } : {} })
+    const params = { tournament_id: selectedTid.value }
+    if (filter.value) params.status = filter.value
+    const { data } = await api.get('/admin/teams', { params })
     teams.value = data
   } catch (e) {
     toast(e.message || '加载失败', 'error')
@@ -60,6 +137,60 @@ async function removeTeam(team) {
     await loadTeams()
   } catch (e) {
     toast(e.message || '删除失败', 'error')
+  }
+}
+
+// ------- Create team modal -------
+function blankTeamForm() {
+  return {
+    name: '',
+    captain: '',
+    declaration: '',
+    status: 'approved',
+    players: [
+      { nickname: '', profession: '突击', is_substitute: false },
+      { nickname: '', profession: '生化', is_substitute: false },
+      { nickname: '', profession: '重装', is_substitute: false },
+      { nickname: '', profession: '护卫', is_substitute: false },
+      { nickname: '', profession: '突击', is_substitute: false },
+    ],
+  }
+}
+const creating = ref(false)
+const createForm = reactive(blankTeamForm())
+const createValidation = computed(() => validateRoster(createForm.players))
+const canCreate = computed(
+  () => createForm.name.trim() && createForm.captain.trim() && createValidation.value.errors.length === 0
+)
+
+function openCreate() {
+  Object.assign(createForm, blankTeamForm())
+  creating.value = true
+}
+
+async function saveCreate() {
+  if (!canCreate.value) {
+    toast('请先修正表单中的问题', 'error')
+    return
+  }
+  try {
+    await api.post('/admin/teams', {
+      tournament_id: selectedTid.value,
+      name: createForm.name.trim(),
+      captain: createForm.captain.trim(),
+      declaration: createForm.declaration.trim(),
+      status: createForm.status,
+      players: createForm.players.map((p) => ({
+        nickname: p.nickname.trim(),
+        profession: p.profession,
+        is_substitute: p.is_substitute,
+      })),
+    })
+    toast('战队已新增', 'success')
+    creating.value = false
+    await loadTeams()
+  } catch (e) {
+    toast(e.message || '新增失败', 'error')
   }
 }
 
@@ -110,8 +241,12 @@ const approvedTeams = computed(() => teams.value.filter((t) => t.status === 'app
 const bracketTeamMap = computed(() => Object.fromEntries(approvedTeams.value.map((t) => [t.id, t.name])))
 
 async function loadBracket() {
+  if (!selectedTid.value) {
+    rounds.value = []
+    return
+  }
   try {
-    const { data } = await api.get('/admin/bracket')
+    const { data } = await api.get(`/admin/tournaments/${selectedTid.value}/bracket`)
     rounds.value = data.rounds || []
   } catch (e) {
     toast(e.message || '加载对阵图失败', 'error')
@@ -135,7 +270,6 @@ function removeMatch(round, mi) {
 function generateSkeleton() {
   const n = approvedTeams.value.length
   if (n < 2) return toast('通过审核的战队不足 2 支，无法生成对阵图', 'error')
-  // largest power of two >= n, capped at 16
   let size = 2
   while (size < n && size < 16) size *= 2
   const seeds = approvedTeams.value.map((t) => t.id)
@@ -162,16 +296,21 @@ function generateSkeleton() {
 
 async function saveBracket() {
   try {
-    await api.put('/admin/bracket', { rounds: rounds.value })
+    await api.put(`/admin/tournaments/${selectedTid.value}/bracket`, { rounds: rounds.value })
     toast('对阵图已保存', 'success')
   } catch (e) {
     toast(e.message || '保存失败', 'error')
   }
 }
 
+// React to tournament switch (for teams & bracket tabs).
+watch(selectedTid, async () => {
+  await Promise.all([loadTeams(), loadBracket()])
+})
+
 onMounted(async () => {
-  await loadTeams()
-  await loadBracket()
+  await loadTournaments()
+  await Promise.all([loadTeams(), loadBracket()])
 })
 </script>
 
@@ -181,8 +320,57 @@ onMounted(async () => {
       <h1 style="margin: 0">管理端</h1>
       <span class="spacer"></span>
       <div class="tabs">
+        <button class="btn sm" :class="{ ghost: tab !== 'tournaments' }" @click="tab = 'tournaments'">赛事管理</button>
         <button class="btn sm" :class="{ ghost: tab !== 'teams' }" @click="tab = 'teams'">战队管理</button>
         <button class="btn sm" :class="{ ghost: tab !== 'bracket' }" @click="tab = 'bracket'">对阵图配置</button>
+      </div>
+    </div>
+
+    <!-- Tournament scope selector (teams & bracket tabs) -->
+    <div v-if="tab !== 'tournaments'" class="row scope-bar">
+      <label class="muted">当前赛事：</label>
+      <select v-model="selectedTid" style="width: 260px">
+        <option v-for="t in tournaments" :key="t.id" :value="t.id">{{ t.name }}</option>
+      </select>
+      <span v-if="selectedTournament" class="badge" :class="selectedTournament.results_public ? 'approved' : 'pending'">
+        {{ selectedTournament.results_public ? '已截止' : '报名中' }}
+      </span>
+      <span v-if="selectedTournament" class="muted small">截止：{{ formatDeadline(selectedTournament.registration_deadline) }}</span>
+    </div>
+
+    <!-- ===================== TOURNAMENTS ===================== -->
+    <div v-show="tab === 'tournaments'">
+      <div class="row toolbar">
+        <span class="muted">共 {{ tournaments.length }} 个赛事</span>
+        <span class="spacer"></span>
+        <button class="btn sm" @click="openTourCreate">+ 新增赛事</button>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr><th>ID</th><th>赛事名称</th><th>报名截止</th><th>状态</th><th>战队数</th><th>操作</th></tr>
+          </thead>
+          <tbody>
+            <tr v-if="!tournaments.length"><td colspan="6" class="muted">暂无赛事</td></tr>
+            <tr v-for="t in tournaments" :key="t.id">
+              <td>{{ t.id }}</td>
+              <td><strong>{{ t.name }}</strong><div v-if="t.description" class="muted tiny">{{ t.description }}</div></td>
+              <td>{{ formatDeadline(t.registration_deadline) }}</td>
+              <td>
+                <span class="badge" :class="t.results_public ? 'approved' : 'pending'">
+                  {{ t.results_public ? '已截止' : '报名中' }}
+                </span>
+              </td>
+              <td>{{ t.team_count }}</td>
+              <td>
+                <div class="actions">
+                  <button class="btn ghost sm" @click="openTourEdit(t)">编辑</button>
+                  <button class="btn danger sm" @click="deleteTour(t)">删除</button>
+                </div>
+              </td>
+            </tr>
+          </tbody>
+        </table>
       </div>
     </div>
 
@@ -199,20 +387,14 @@ onMounted(async () => {
         <button class="btn ghost sm" @click="loadTeams">刷新</button>
         <span class="spacer"></span>
         <span class="muted">共 {{ teams.length }} 支</span>
+        <button class="btn sm" :disabled="!selectedTid" @click="openCreate">+ 新增战队</button>
       </div>
 
       <div class="table-wrap">
         <table>
           <thead>
             <tr>
-              <th>ID</th>
-              <th>队伍名称</th>
-              <th>队长</th>
-              <th>报名账号</th>
-              <th>阵容</th>
-              <th>作战宣言</th>
-              <th>状态</th>
-              <th>操作</th>
+              <th>ID</th><th>队伍名称</th><th>队长</th><th>报名账号</th><th>阵容</th><th>作战宣言</th><th>状态</th><th>操作</th>
             </tr>
           </thead>
           <tbody>
@@ -309,6 +491,55 @@ onMounted(async () => {
       </div>
     </div>
 
+    <!-- ===================== TOURNAMENT MODAL ===================== -->
+    <div v-if="tourModal" class="modal-backdrop" @click.self="tourModal = false">
+      <div class="modal" style="width: min(520px, 100%)">
+        <div class="row">
+          <h2 style="margin: 0">{{ tourEditingId ? '编辑赛事' : '新增赛事' }}</h2>
+          <span class="spacer"></span>
+          <button class="btn ghost sm" @click="tourModal = false">取消</button>
+        </div>
+        <div class="field"><label>赛事名称 *</label><input v-model="tourForm.name" maxlength="128" placeholder="例如：百变兵团第二届选花杯" /></div>
+        <div class="field"><label>赛事简介</label><textarea v-model="tourForm.description" maxlength="2000" placeholder="可选"></textarea></div>
+        <div class="field">
+          <label>报名截止时间 *</label>
+          <input v-model="tourForm.registration_deadline" type="datetime-local" />
+          <p class="muted tiny" style="margin-top:0.35rem">截止后才会向所有人公开参赛战队与对阵图；截止前用户只能看到自己的战队。</p>
+        </div>
+        <button class="btn accent" style="width: 100%" @click="saveTour">
+          {{ tourEditingId ? '保存修改' : '创建赛事' }}
+        </button>
+      </div>
+    </div>
+
+    <!-- ===================== CREATE TEAM MODAL ===================== -->
+    <div v-if="creating" class="modal-backdrop" @click.self="creating = false">
+      <div class="modal">
+        <div class="row">
+          <h2 style="margin: 0">新增战队</h2>
+          <span class="spacer"></span>
+          <button class="btn ghost sm" @click="creating = false">取消</button>
+        </div>
+        <p class="muted">录入到「{{ selectedTournament?.name }}」；可直接指定初始审核状态。</p>
+        <div class="field"><label>队伍名称 *</label><input v-model="createForm.name" maxlength="128" placeholder="例如：烈焰星辰" /></div>
+        <div class="field"><label>队长 *</label><input v-model="createForm.captain" maxlength="64" placeholder="队长称呼" /></div>
+        <div class="field">
+          <label>初始状态</label>
+          <select v-model="createForm.status" style="width: 200px">
+            <option value="approved">已通过</option>
+            <option value="pending">审核中</option>
+            <option value="rejected">未通过</option>
+          </select>
+        </div>
+        <h4>参赛阵容 *</h4>
+        <RosterEditor v-model="createForm.players" />
+        <div class="field" style="margin-top: 1rem"><label>作战宣言</label><textarea v-model="createForm.declaration" maxlength="2000"></textarea></div>
+        <button class="btn accent" style="width: 100%" :disabled="!canCreate" @click="saveCreate">
+          新增战队
+        </button>
+      </div>
+    </div>
+
     <!-- ===================== EDIT MODAL ===================== -->
     <div v-if="editing" class="modal-backdrop" @click.self="editing = null">
       <div class="modal">
@@ -332,10 +563,12 @@ onMounted(async () => {
 
 <style scoped>
 .tabs { display: flex; gap: 0.5rem; }
+.scope-bar { margin: 1.2rem 0 0.4rem; padding: 0.7rem 0.9rem; background: var(--bg-2); border-radius: var(--radius-sm); }
 .toolbar { margin: 1.2rem 0 1rem; }
 .prof-mini { display: flex; gap: 0.3rem; margin-bottom: 0.2rem; }
 .chip.sm { font-size: 0.72rem; padding: 0.1rem 0.4rem; }
 .tiny { font-size: 0.72rem; }
+.small { font-size: 0.8rem; }
 .declaration-cell { max-width: 220px; color: var(--muted); }
 .actions { display: flex; gap: 0.3rem; flex-wrap: wrap; }
 

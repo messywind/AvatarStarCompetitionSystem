@@ -3,6 +3,7 @@ import { ref } from 'vue'
 import { useRoute, useRouter, RouterLink } from 'vue-router'
 import { useAuthStore } from '../stores/auth'
 import { toast } from '../toast'
+import logo from '../assets/logo.png'
 
 const auth = useAuthStore()
 const router = useRouter()
@@ -30,6 +31,7 @@ async function submit() {
 <template>
   <div class="container auth-page">
     <div class="panel auth-card">
+      <img :src="logo" alt="百变兵团" class="auth-logo" />
       <h1>登录</h1>
       <p class="muted">登录后即可报名参赛、管理你的战队。</p>
       <form @submit.prevent="submit">
@@ -53,5 +55,6 @@ async function submit() {
 <style scoped>
 .auth-page { display: flex; justify-content: center; padding-top: 3rem; }
 .auth-card { width: min(420px, 100%); }
+.auth-logo { display: block; height: 40px; margin: 0 auto 1.2rem; }
 .switch { margin-top: 1rem; text-align: center; }
 </style>

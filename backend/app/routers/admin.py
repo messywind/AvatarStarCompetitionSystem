@@ -5,12 +5,26 @@ from sqlalchemy.orm import Session
 
 from ..database import get_db
 from ..deps import require_admin
-from ..models import Player, Setting, Team, User
-from ..schemas import Bracket, TeamOut, TeamReview, TeamUpdate
+from ..models import (
+    Player,
+    Team,
+    Tournament,
+    User,
+    registration_open,
+    results_public,
+)
+from ..schemas import (
+    AdminTeamCreate,
+    Bracket,
+    TeamOut,
+    TeamReview,
+    TeamUpdate,
+    TournamentCreate,
+    TournamentOut,
+    TournamentUpdate,
+)
 
 router = APIRouter(prefix="/api/admin", tags=["admin"], dependencies=[Depends(require_admin)])
-
-BRACKET_KEY = "bracket"
 
 
 def _get_team_or_404(db: Session, team_id: int) -> Team:
@@ -20,12 +34,112 @@ def _get_team_or_404(db: Session, team_id: int) -> Team:
     return team
 
 
+def _get_tournament_or_404(db: Session, tournament_id: int) -> Tournament:
+    t = db.query(Tournament).filter(Tournament.id == tournament_id).first()
+    if not t:
+        raise HTTPException(status_code=404, detail="赛事不存在")
+    return t
+
+
+def _tournament_out(db: Session, t: Tournament) -> TournamentOut:
+    count = db.query(Team).filter(Team.tournament_id == t.id).count()
+    return TournamentOut(
+        id=t.id,
+        name=t.name,
+        description=t.description or "",
+        registration_deadline=t.registration_deadline,
+        registration_open=registration_open(t),
+        results_public=results_public(t),
+        team_count=count,
+    )
+
+
+# ---------- Tournaments ----------
+
+
+@router.get("/tournaments", response_model=list[TournamentOut])
+def list_tournaments(db: Session = Depends(get_db)):
+    rows = db.query(Tournament).order_by(Tournament.created_at.desc()).all()
+    return [_tournament_out(db, t) for t in rows]
+
+
+@router.post("/tournaments", response_model=TournamentOut, status_code=201)
+def create_tournament(payload: TournamentCreate, db: Session = Depends(get_db)):
+    t = Tournament(
+        name=payload.name,
+        description=payload.description,
+        registration_deadline=payload.registration_deadline,
+    )
+    db.add(t)
+    db.commit()
+    db.refresh(t)
+    return _tournament_out(db, t)
+
+
+@router.put("/tournaments/{tournament_id}", response_model=TournamentOut)
+def update_tournament(tournament_id: int, payload: TournamentUpdate, db: Session = Depends(get_db)):
+    t = _get_tournament_or_404(db, tournament_id)
+    if payload.name is not None:
+        t.name = payload.name
+    if payload.description is not None:
+        t.description = payload.description
+    if payload.registration_deadline is not None:
+        t.registration_deadline = payload.registration_deadline
+    db.commit()
+    db.refresh(t)
+    return _tournament_out(db, t)
+
+
+@router.delete("/tournaments/{tournament_id}", status_code=204)
+def delete_tournament(tournament_id: int, db: Session = Depends(get_db)):
+    t = _get_tournament_or_404(db, tournament_id)
+    if db.query(Tournament).count() <= 1:
+        raise HTTPException(status_code=400, detail="至少需要保留一个赛事")
+    db.delete(t)
+    db.commit()
+
+
+# ---------- Teams ----------
+
+
 @router.get("/teams", response_model=list[TeamOut])
-def list_all_teams(status: str | None = None, db: Session = Depends(get_db)):
+def list_all_teams(
+    status: str | None = None,
+    tournament_id: int | None = None,
+    db: Session = Depends(get_db),
+):
     q = db.query(Team)
+    if tournament_id is not None:
+        q = q.filter(Team.tournament_id == tournament_id)
     if status:
         q = q.filter(Team.status == status)
     return q.order_by(Team.created_at.desc()).all()
+
+
+@router.post("/teams", response_model=TeamOut, status_code=201)
+def create_team(
+    payload: AdminTeamCreate,
+    db: Session = Depends(get_db),
+    admin: User = Depends(require_admin),
+):
+    """Admin manually adds a team; owned by the admin account, status set directly."""
+    _get_tournament_or_404(db, payload.tournament_id)
+    team = Team(
+        tournament_id=payload.tournament_id,
+        name=payload.name,
+        captain=payload.captain,
+        declaration=payload.declaration,
+        owner_id=admin.id,
+        status=payload.status,
+    )
+    team.players = [
+        Player(nickname=p.nickname, profession=p.profession, is_substitute=p.is_substitute)
+        for p in payload.players
+    ]
+    db.add(team)
+    db.commit()
+    db.refresh(team)
+    return team
 
 
 @router.get("/teams/{team_id}", response_model=TeamOut)
@@ -71,25 +185,21 @@ def delete_team(team_id: int, db: Session = Depends(get_db)):
     db.commit()
 
 
-# ---------- Bracket configuration ----------
+# ---------- Bracket (per tournament) ----------
 
 
-@router.get("/bracket", response_model=Bracket)
-def get_bracket(db: Session = Depends(get_db)):
-    row = db.query(Setting).filter(Setting.key == BRACKET_KEY).first()
-    if not row or not row.value:
+@router.get("/tournaments/{tournament_id}/bracket", response_model=Bracket)
+def get_bracket(tournament_id: int, db: Session = Depends(get_db)):
+    t = _get_tournament_or_404(db, tournament_id)
+    if not t.bracket_json:
         return Bracket(rounds=[])
-    return Bracket(**json.loads(row.value))
+    return Bracket(**json.loads(t.bracket_json))
 
 
-@router.put("/bracket", response_model=Bracket)
-def save_bracket(payload: Bracket, db: Session = Depends(get_db)):
-    row = db.query(Setting).filter(Setting.key == BRACKET_KEY).first()
-    value = payload.model_dump_json()
-    if row:
-        row.value = value
-    else:
-        db.add(Setting(key=BRACKET_KEY, value=value))
+@router.put("/tournaments/{tournament_id}/bracket", response_model=Bracket)
+def save_bracket(tournament_id: int, payload: Bracket, db: Session = Depends(get_db)):
+    t = _get_tournament_or_404(db, tournament_id)
+    t.bracket_json = payload.model_dump_json()
     db.commit()
     return payload
 

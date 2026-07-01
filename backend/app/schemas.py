@@ -19,6 +19,36 @@ class UserLogin(BaseModel):
     password: str
 
 
+class PasswordChange(BaseModel):
+    old_password: str = Field(min_length=1, max_length=128)
+    new_password: str = Field(min_length=6, max_length=128)
+
+
+# ---------- Tournaments ----------
+
+
+class TournamentCreate(BaseModel):
+    name: str = Field(min_length=1, max_length=128)
+    description: str = Field(default="", max_length=2000)
+    registration_deadline: datetime
+
+
+class TournamentUpdate(BaseModel):
+    name: Optional[str] = Field(default=None, max_length=128)
+    description: Optional[str] = Field(default=None, max_length=2000)
+    registration_deadline: Optional[datetime] = None
+
+
+class TournamentOut(BaseModel):
+    id: int
+    name: str
+    description: str
+    registration_deadline: datetime
+    registration_open: bool
+    results_public: bool
+    team_count: int = 0
+
+
 class UserOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
     id: int
@@ -57,6 +87,7 @@ class PlayerOut(BaseModel):
 
 
 class TeamCreate(BaseModel):
+    tournament_id: int
     name: str = Field(min_length=1, max_length=128)
     captain: str = Field(min_length=1, max_length=64)
     declaration: str = Field(default="", max_length=2000)
@@ -82,6 +113,19 @@ class TeamCreate(BaseModel):
         # substitutes: unlimited count, but if present must still be valid professions
         # (validated per-field already)
         return self
+
+
+class AdminTeamCreate(TeamCreate):
+    """Admin manually adds a team; may set the initial review status directly."""
+
+    status: str = "approved"
+
+    @field_validator("status")
+    @classmethod
+    def valid_status(cls, v: str) -> str:
+        if v not in ("approved", "rejected", "pending"):
+            raise ValueError("状态不合法")
+        return v
 
 
 class TeamUpdate(BaseModel):
@@ -129,6 +173,7 @@ class OwnerOut(BaseModel):
 class TeamOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
     id: int
+    tournament_id: int
     name: str
     captain: str
     declaration: str
