@@ -11,6 +11,7 @@ import { tournamentVisual } from '../tournamentAssets'
 const auth = useAuthStore()
 
 const STATUS_LABEL = { pending: '审核中', approved: '已通过', rejected: '未通过' }
+const REGISTRATION_LABEL = { team: '战队报名', solo: '个人报名' }
 
 const tournaments = ref([])
 const selectedTid = ref(null)
@@ -86,7 +87,7 @@ onMounted(async () => {
 <template>
   <div class="container">
     <h1>赛事浏览</h1>
-    <p class="muted">报名截止后公布全部参赛战队与晋级对阵；报名期间仅可查看自己的战队。</p>
+    <p class="muted">报名截止后公布全部参赛名单与晋级对阵；报名期间仅可查看自己的报名。</p>
 
     <!-- Tournament cards -->
     <div v-if="tournaments.length" class="tournament-grid">
@@ -108,14 +109,14 @@ onMounted(async () => {
                 {{ t.results_public ? '已公布' : '报名中' }}
               </span>
             </div>
-            <p class="muted">{{ t.description || '百变兵团官方赛事，等待战队集结。' }}</p>
+            <p class="muted">{{ t.description || '百变兵团民间赛事，等待报名者集结。' }}</p>
           </div>
         </div>
 
         <div class="tournament-meta">
           <span>
             <strong>{{ t.team_count }}</strong>
-            支战队
+            条报名
           </span>
           <span>
             截止：<strong>{{ formatDeadline(t.registration_deadline) }}</strong>
@@ -135,14 +136,14 @@ onMounted(async () => {
             <h2>报名进行中</h2>
             <p class="muted">
               该赛事将于 <strong>{{ formatDeadline(selected.registration_deadline) }}</strong>
-              （{{ countdown(selected.registration_deadline) }}）报名截止，届时公布全部参赛战队与对阵图。
+              （{{ countdown(selected.registration_deadline) }}）报名截止，届时公布全部参赛名单与对阵图。
             </p>
           </div>
 
           <template v-if="auth.isAuthenticated">
-            <h2 class="teams-title">我的战队 <span class="muted">（报名期间仅你可见）</span></h2>
+            <h2 class="teams-title">我的报名 <span class="muted">（报名期间仅你可见）</span></h2>
             <p v-if="loading" class="muted">加载中…</p>
-            <p v-else-if="!myTeams.length" class="muted">你还没有在该赛事报名的战队。</p>
+            <p v-else-if="!myTeams.length" class="muted">你还没有在该赛事提交报名。</p>
             <div class="team-grid">
               <div
                 v-for="(t, i) in myTeams"
@@ -153,9 +154,10 @@ onMounted(async () => {
               >
                 <div class="row">
                   <h3 style="margin: 0">{{ t.name }}</h3>
+                  <span class="chip type-chip">{{ REGISTRATION_LABEL[t.registration_type] || '报名' }}</span>
                   <span class="badge" :class="t.status">{{ STATUS_LABEL[t.status] }}</span>
                   <span class="spacer"></span>
-                  <span class="muted small">队长 {{ t.captain }}</span>
+                  <span class="muted small">{{ t.registration_type === 'solo' ? '称呼' : '队长' }} {{ t.captain }}</span>
                 </div>
                 <p v-if="t.declaration" class="declaration">「{{ t.declaration }}」</p>
                 <div class="players">
@@ -168,7 +170,7 @@ onMounted(async () => {
             </div>
           </template>
           <p v-else class="muted login-hint">
-            <RouterLink to="/login">登录</RouterLink> 后可在报名期间查看自己已提交的战队。
+            <RouterLink to="/login">登录</RouterLink> 后可在报名期间查看自己已提交的报名。
           </p>
         </div>
 
@@ -179,9 +181,9 @@ onMounted(async () => {
             <Bracket :rounds="rounds" :team-map="teamMap" />
           </section>
 
-          <h2 class="teams-title">参赛战队 <span class="muted">（{{ teams.length }} 支）</span></h2>
+          <h2 class="teams-title">参赛名单 <span class="muted">（{{ teams.length }} 条）</span></h2>
           <p v-if="loading" class="muted">加载中…</p>
-          <p v-else-if="!teams.length" class="muted">暂无通过审核的战队。</p>
+          <p v-else-if="!teams.length" class="muted">暂无通过审核的报名记录。</p>
 
           <div class="team-grid">
             <div
@@ -193,8 +195,9 @@ onMounted(async () => {
             >
               <div class="row">
                 <h3 style="margin: 0">{{ t.name }}</h3>
+                <span class="chip type-chip">{{ REGISTRATION_LABEL[t.registration_type] || '报名' }}</span>
                 <span class="spacer"></span>
-                <span class="muted small">队长 {{ t.captain }}</span>
+                <span class="muted small">{{ t.registration_type === 'solo' ? '称呼' : '队长' }} {{ t.captain }}</span>
               </div>
               <p v-if="t.declaration" class="declaration">「{{ t.declaration }}」</p>
               <div class="players">
@@ -216,13 +219,15 @@ onMounted(async () => {
         <div class="modal">
           <div class="row">
             <h2 style="margin: 0">{{ activeTeam.name }}</h2>
+            <span class="chip type-chip">{{ REGISTRATION_LABEL[activeTeam.registration_type] || '报名' }}</span>
             <span class="spacer"></span>
             <button class="btn ghost sm" @click="activeTeam = null">关闭</button>
           </div>
-          <p class="muted">队长：{{ activeTeam.captain }}</p>
+          <p class="muted">{{ activeTeam.registration_type === 'solo' ? '报名称呼' : '队长' }}：{{ activeTeam.captain }}</p>
+          <p v-if="activeTeam.contact" class="muted">联系方式：{{ activeTeam.contact }}</p>
           <p v-if="activeTeam.declaration" class="declaration">「{{ activeTeam.declaration }}」</p>
 
-          <h4>正式队员</h4>
+          <h4>{{ activeTeam.registration_type === 'solo' ? '个人信息' : '正式队员' }}</h4>
           <div class="table-wrap">
             <table>
               <thead><tr><th>称呼</th><th>职业</th></tr></thead>

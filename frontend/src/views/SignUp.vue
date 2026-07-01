@@ -5,6 +5,7 @@ import { toast } from '../toast'
 import { validateRoster, PROFESSIONS } from '../roster'
 import { formatDeadline, countdown } from '../time'
 import RosterEditor from '../components/RosterEditor.vue'
+import signupGroupQrcode from '../assets/signup-group-qrcode.jpg'
 
 const STATUS_LABEL = { pending: '审核中', approved: '已通过', rejected: '未通过' }
 
@@ -18,26 +19,46 @@ function blankRoster() {
   ]
 }
 
-const form = reactive({ name: '', captain: '', declaration: '', players: blankRoster() })
+const REGISTRATION_LABEL = { team: '战队报名', solo: '个人报名' }
+
+const form = reactive({
+  registrationType: 'team',
+  name: '',
+  captain: '',
+  contact: '',
+  declaration: '',
+  players: blankRoster(),
+  soloNickname: '',
+  soloProfession: '突击',
+})
 const submitting = ref(false)
 const myTeams = ref([])
 const tournaments = ref([])
 const selectedTid = ref(null)
+const showGroupDialog = ref(false)
 
 const openTournaments = computed(() => tournaments.value.filter((t) => t.registration_open))
 const selectedTournament = computed(() => tournaments.value.find((t) => t.id === selectedTid.value))
 const tournamentName = (id) => tournaments.value.find((t) => t.id === id)?.name || `#${id}`
 
+const isSolo = computed(() => form.registrationType === 'solo')
 const validation = computed(() => validateRoster(form.players))
-const canSubmit = computed(
-  () => selectedTid.value && form.name.trim() && form.captain.trim() && validation.value.errors.length === 0
-)
+const canSubmit = computed(() => {
+  if (!selectedTid.value) return false
+  if (!form.contact.trim()) return false
+  if (isSolo.value) return !!form.soloNickname.trim() && !!form.soloProfession
+  return !!form.name.trim() && !!form.captain.trim() && validation.value.errors.length === 0
+})
 
 function resetForm() {
+  form.registrationType = 'team'
   form.name = ''
   form.captain = ''
+  form.contact = ''
   form.declaration = ''
   form.players = blankRoster()
+  form.soloNickname = ''
+  form.soloProfession = '突击'
 }
 
 async function loadTournaments() {
@@ -65,20 +86,32 @@ async function submit() {
   }
   submitting.value = true
   try {
+    const players = isSolo.value
+      ? [
+          {
+            nickname: form.soloNickname.trim(),
+            profession: form.soloProfession,
+            is_substitute: false,
+          },
+        ]
+      : form.players.map((p) => ({
+          nickname: p.nickname.trim(),
+          profession: p.profession,
+          is_substitute: p.is_substitute,
+        }))
     await api.post('/teams', {
       tournament_id: selectedTid.value,
-      name: form.name.trim(),
-      captain: form.captain.trim(),
+      registration_type: isSolo.value ? 'solo' : 'team',
+      name: isSolo.value ? form.soloNickname.trim() : form.name.trim(),
+      captain: isSolo.value ? form.soloNickname.trim() : form.captain.trim(),
+      contact: form.contact.trim(),
       declaration: form.declaration.trim(),
-      players: form.players.map((p) => ({
-        nickname: p.nickname.trim(),
-        profession: p.profession,
-        is_substitute: p.is_substitute,
-      })),
+      players,
     })
     toast('报名提交成功，等待管理员审核', 'success')
     resetForm()
     await loadMine()
+    showGroupDialog.value = true
   } catch (e) {
     toast(e.message || '提交失败', 'error')
   } finally {
@@ -87,7 +120,7 @@ async function submit() {
 }
 
 async function withdraw(team) {
-  if (!confirm(`确定撤回战队「${team.name}」的报名吗？`)) return
+  if (!confirm(`确定撤回报名「${team.name}」吗？`)) return
   try {
     await api.delete(`/teams/${team.id}`)
     toast('已撤回', 'info')
@@ -110,8 +143,8 @@ onMounted(async () => {
 
 <template>
   <div class="container">
-    <h1>战队报名</h1>
-    <p class="muted">选择赛事、填写战队信息并组建你的参赛阵容，提交后由管理员审核。</p>
+    <h1>赛事报名</h1>
+    <p class="muted">选择赛事后，可提交战队报名或个人报名，资料提交后由管理员审核。</p>
 
     <div class="signup-grid">
       <div class="panel">
@@ -131,20 +164,68 @@ onMounted(async () => {
           </div>
 
           <div class="field">
-            <label>队伍名称 *</label>
-            <input v-model="form.name" maxlength="128" placeholder="例如：烈焰星辰" />
-          </div>
-          <div class="field">
-            <label>队长 *</label>
-            <input v-model="form.captain" maxlength="64" placeholder="队长称呼" />
+            <label>联系方式 *</label>
+            <input v-model="form.contact" maxlength="128" placeholder="QQ / 微信 / 手机号，便于联系" />
           </div>
 
-          <h3 class="roster-title">参赛选手称呼及职业 *</h3>
-          <RosterEditor v-model="form.players" />
+          <div class="field">
+            <label>报名类型 *</label>
+            <div class="type-switch">
+              <button
+                type="button"
+                class="type-option"
+                :class="{ active: form.registrationType === 'team' }"
+                @click="form.registrationType = 'team'"
+              >
+                战队报名
+              </button>
+              <button
+                type="button"
+                class="type-option"
+                :class="{ active: form.registrationType === 'solo' }"
+                @click="form.registrationType = 'solo'"
+              >
+                个人报名
+              </button>
+            </div>
+          </div>
+
+          <template v-if="!isSolo">
+            <div class="field">
+              <label>队伍名称 *</label>
+              <input v-model="form.name" maxlength="128" placeholder="例如：烈焰星辰" />
+            </div>
+            <div class="field">
+              <label>队长 *</label>
+              <input v-model="form.captain" maxlength="64" placeholder="队长称呼" />
+            </div>
+
+            <h3 class="roster-title">参赛选手称呼及职业 *</h3>
+            <RosterEditor v-model="form.players" />
+          </template>
+
+          <template v-else>
+            <div class="solo-panel">
+              <div class="field">
+                <label>称呼 *</label>
+                <input v-model="form.soloNickname" maxlength="64" placeholder="填写个人报名称呼" />
+              </div>
+              <div class="field" style="margin-bottom: 0">
+                <label>职业 *</label>
+                <select v-model="form.soloProfession">
+                  <option v-for="prof in PROFESSIONS" :key="prof" :value="prof">{{ prof }}</option>
+                </select>
+              </div>
+            </div>
+          </template>
 
           <div class="field" style="margin-top: 1.2rem">
-            <label>作战宣言</label>
-            <textarea v-model="form.declaration" maxlength="2000" placeholder="喊出你们的口号！"></textarea>
+            <label>{{ isSolo ? '个人宣言' : '作战宣言' }}</label>
+            <textarea
+              v-model="form.declaration"
+              maxlength="2000"
+              :placeholder="isSolo ? '写点你的报名介绍或想说的话' : '喊出你们的口号！'"
+            ></textarea>
           </div>
 
           <button class="btn accent" style="width: 100%" :disabled="!canSubmit || submitting" @click="submit">
@@ -155,18 +236,26 @@ onMounted(async () => {
 
       <aside class="side">
         <div class="panel">
-          <h3>我的战队</h3>
-          <p v-if="!myTeams.length" class="muted">你还没有报名的战队。</p>
+          <h3>我的报名</h3>
+          <p v-if="!myTeams.length" class="muted">你还没有提交任何报名。</p>
           <div v-for="t in myTeams" :key="t.id" class="my-team">
             <div class="row">
               <strong>{{ t.name }}</strong>
+              <span class="chip sm type-chip">{{ REGISTRATION_LABEL[t.registration_type] || '报名' }}</span>
               <span class="badge" :class="t.status">{{ STATUS_LABEL[t.status] }}</span>
               <span class="spacer"></span>
               <button class="btn danger sm" @click="withdraw(t)">撤回</button>
             </div>
             <p class="muted small tour-tag">{{ tournamentName(t.tournament_id) }}</p>
-            <p class="muted small">队长：{{ t.captain }}</p>
-            <div class="prof-mini">
+            <p class="muted small">{{ t.registration_type === 'solo' ? '报名称呼' : '队长' }}：{{ t.captain }}</p>
+            <p class="muted small">联系方式：{{ t.contact }}</p>
+            <div v-if="t.registration_type === 'solo'" class="prof-mini">
+              <span class="chip sm">
+                <span class="dot" :style="{ background: `var(--prof-${t.players[0]?.profession || '突击'})` }"></span>
+                {{ t.players[0]?.profession || '未填职业' }}
+              </span>
+            </div>
+            <div v-else class="prof-mini">
               <span v-for="prof in PROFESSIONS" :key="prof" class="chip sm">
                 <span class="dot" :style="{ background: `var(--prof-${prof})` }"></span>
                 {{ prof }}·{{ professionCounts(t.players)[prof] }}
@@ -177,6 +266,22 @@ onMounted(async () => {
         </div>
       </aside>
     </div>
+
+    <Transition name="modal-fade">
+      <div v-if="showGroupDialog" class="modal-backdrop" @click.self="showGroupDialog = false">
+        <div class="modal group-modal">
+          <div class="row group-head">
+            <div>
+              <h2>报名成功</h2>
+              <p class="muted">请扫码加入赛事群，方便接收后续通知与安排。</p>
+            </div>
+            <span class="spacer"></span>
+            <button class="btn ghost sm" @click="showGroupDialog = false">关闭</button>
+          </div>
+          <img :src="signupGroupQrcode" alt="赛事群二维码" class="group-qrcode" />
+        </div>
+      </div>
+    </Transition>
   </div>
 </template>
 
@@ -201,12 +306,66 @@ onMounted(async () => {
   margin-bottom: 1.1rem;
 }
 .deadline-note .cd { margin-left: 0.6rem; font-weight: 700; }
+.type-switch {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 0.6rem;
+}
+.type-option {
+  min-height: 44px;
+  border-radius: 14px;
+  border: 1px solid var(--border);
+  background: var(--panel);
+  color: var(--muted);
+  font-size: 0.92rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: border-color 0.18s var(--ease-out), background 0.18s var(--ease-out), color 0.18s var(--ease-out), transform 0.18s var(--ease-out), box-shadow 0.18s var(--ease-out);
+}
+.type-option:hover {
+  transform: translateY(-1px);
+  border-color: rgba(0, 113, 227, 0.28);
+}
+.type-option.active {
+  color: var(--primary);
+  background: rgba(0, 113, 227, 0.08);
+  border-color: rgba(0, 113, 227, 0.34);
+  box-shadow: 0 0 0 3px rgba(0, 113, 227, 0.08);
+}
+.solo-panel {
+  padding: 1rem;
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+  background: linear-gradient(180deg, rgba(0, 113, 227, 0.04), rgba(0, 113, 227, 0.01));
+}
 .my-team { border-top: 1px solid var(--border); padding: 0.9rem 0; }
 .my-team:first-of-type { border-top: none; }
 .small { font-size: 0.8rem; margin: 0.3rem 0; }
 .tour-tag { color: var(--primary); font-weight: 600; }
 .prof-mini { display: flex; gap: 0.35rem; flex-wrap: wrap; margin: 0.4rem 0; }
 .chip.sm { font-size: 0.72rem; padding: 0.12rem 0.45rem; }
+.type-chip { color: var(--primary); background: rgba(0, 113, 227, 0.08); border-color: rgba(0, 113, 227, 0.12); }
+.group-modal {
+  width: min(560px, 100%);
+  padding: 1rem;
+}
+.group-head {
+  align-items: flex-start;
+  padding: 0.35rem 0.35rem 0.85rem;
+}
+.group-head h2 {
+  margin-bottom: 0.2rem;
+}
+.group-head p {
+  margin: 0;
+}
+.group-qrcode {
+  display: block;
+  width: 100%;
+  max-height: 76vh;
+  object-fit: contain;
+  border-radius: 16px;
+}
 
 @keyframes panel-lift {
   from {
@@ -225,6 +384,9 @@ onMounted(async () => {
 }
 
 @media (max-width: 560px) {
+  .type-switch {
+    grid-template-columns: 1fr;
+  }
   .deadline-note {
     line-height: 1.65;
   }
@@ -240,6 +402,9 @@ onMounted(async () => {
   }
   .my-team .btn {
     width: 100%;
+  }
+  .group-modal {
+    padding: 0.8rem;
   }
 }
 

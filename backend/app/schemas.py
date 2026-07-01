@@ -4,7 +4,9 @@ from typing import Optional
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
-from .models import PROFESSIONS
+from .models import PROFESSIONS, REGISTRATION_SOLO, REGISTRATION_TEAM
+
+REGISTRATION_TYPES = (REGISTRATION_TEAM, REGISTRATION_SOLO)
 
 # ---------- Auth ----------
 
@@ -88,20 +90,47 @@ class PlayerOut(BaseModel):
 
 class TeamCreate(BaseModel):
     tournament_id: int
-    name: str = Field(min_length=1, max_length=128)
-    captain: str = Field(min_length=1, max_length=64)
+    registration_type: str = REGISTRATION_TEAM
+    name: str = Field(default="", max_length=128)
+    captain: str = Field(default="", max_length=64)
+    contact: str = Field(min_length=1, max_length=128)
     declaration: str = Field(default="", max_length=2000)
     players: list[PlayerIn]
+
+    @field_validator("registration_type")
+    @classmethod
+    def valid_registration_type(cls, v: str) -> str:
+        if v not in REGISTRATION_TYPES:
+            raise ValueError("报名类型不合法")
+        return v
+
+    @field_validator("contact")
+    @classmethod
+    def valid_contact(cls, v: str) -> str:
+        if not v.strip():
+            raise ValueError("请填写联系方式")
+        return v.strip()
 
     @model_validator(mode="after")
     def validate_roster(self):
         formal = [p for p in self.players if not p.is_substitute]
+        if self.registration_type != REGISTRATION_SOLO and len(self.players) == 1 and len(formal) == 1:
+            self.registration_type = REGISTRATION_SOLO
 
-        # exactly five formal members
+        if self.registration_type == REGISTRATION_SOLO:
+            if len(self.players) != 1 or len(formal) != 1:
+                raise ValueError("个人报名必须且只能填写 1 位正式选手")
+            if self.players[0].is_substitute:
+                raise ValueError("个人报名选手不能标记为替补")
+            return self
+
+        if not self.name.strip():
+            raise ValueError("请填写队伍名称")
+        if not self.captain.strip():
+            raise ValueError("请填写队长")
         if len(formal) != 5:
             raise ValueError("正式队员必须严格为 5 人")
 
-        # profession distribution rules (only formal players count)
         counts = Counter(p.profession for p in formal)
         for prof in PROFESSIONS:
             c = counts.get(prof, 0)
@@ -109,9 +138,6 @@ class TeamCreate(BaseModel):
                 raise ValueError(f"职业「{prof}」的人数不得为 0")
             if c > 2:
                 raise ValueError(f"职业「{prof}」的人数不得超过 2 个")
-
-        # substitutes: unlimited count, but if present must still be valid professions
-        # (validated per-field already)
         return self
 
 
@@ -131,24 +157,49 @@ class AdminTeamCreate(TeamCreate):
 class TeamUpdate(BaseModel):
     """Admin edit — all fields optional; if players provided, same roster rules apply."""
 
+    registration_type: Optional[str] = None
     name: Optional[str] = Field(default=None, max_length=128)
     captain: Optional[str] = Field(default=None, max_length=64)
+    contact: Optional[str] = Field(default=None, max_length=128)
     declaration: Optional[str] = Field(default=None, max_length=2000)
     players: Optional[list[PlayerIn]] = None
+
+    @field_validator("registration_type")
+    @classmethod
+    def valid_registration_type(cls, v: Optional[str]) -> Optional[str]:
+        if v is not None and v not in REGISTRATION_TYPES:
+            raise ValueError("报名类型不合法")
+        return v
+
+    @field_validator("contact")
+    @classmethod
+    def valid_contact(cls, v: Optional[str]) -> Optional[str]:
+        if v is not None and not v.strip():
+            raise ValueError("请填写联系方式")
+        return v.strip() if v is not None else v
 
     @model_validator(mode="after")
     def validate_roster(self):
         if self.players is not None:
             formal = [p for p in self.players if not p.is_substitute]
-            if len(formal) != 5:
-                raise ValueError("正式队员必须严格为 5 人")
-            counts = Counter(p.profession for p in formal)
-            for prof in PROFESSIONS:
-                c = counts.get(prof, 0)
-                if c == 0:
-                    raise ValueError(f"职业「{prof}」的人数不得为 0")
-                if c > 2:
-                    raise ValueError(f"职业「{prof}」的人数不得超过 2 个")
+            if self.registration_type != REGISTRATION_SOLO and len(self.players) == 1 and len(formal) == 1:
+                self.registration_type = REGISTRATION_SOLO
+
+            if self.registration_type == REGISTRATION_SOLO:
+                if len(self.players) != 1 or len(formal) != 1:
+                    raise ValueError("个人报名必须且只能填写 1 位正式选手")
+                if self.players[0].is_substitute:
+                    raise ValueError("个人报名选手不能标记为替补")
+            else:
+                if len(formal) != 5:
+                    raise ValueError("正式队员必须严格为 5 人")
+                counts = Counter(p.profession for p in formal)
+                for prof in PROFESSIONS:
+                    c = counts.get(prof, 0)
+                    if c == 0:
+                        raise ValueError(f"职业「{prof}」的人数不得为 0")
+                    if c > 2:
+                        raise ValueError(f"职业「{prof}」的人数不得超过 2 个")
         return self
 
 
@@ -174,8 +225,10 @@ class TeamOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
     id: int
     tournament_id: int
+    registration_type: str
     name: str
     captain: str
+    contact: str
     declaration: str
     status: str
     review_note: str
@@ -190,6 +243,7 @@ class TeamPublicOut(BaseModel):
 
     model_config = ConfigDict(from_attributes=True)
     id: int
+    registration_type: str
     name: str
     captain: str
     declaration: str

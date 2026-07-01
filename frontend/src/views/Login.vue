@@ -33,7 +33,7 @@ async function submit() {
     <div class="panel auth-card">
       <img :src="logo" alt="百变兵团" class="auth-logo" />
       <h1>登录</h1>
-      <p class="muted">登录后即可报名参赛、管理你的战队。</p>
+      <p class="muted">登录后即可报名参赛，并管理你的报名记录。</p>
       <form @submit.prevent="submit">
         <div class="field">
           <label>用户名</label>

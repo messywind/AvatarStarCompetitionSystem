@@ -58,7 +58,7 @@ def run():
         if not tournament:
             tournament = Tournament(
                 name="百变兵团第一届选花杯",
-                description="百变兵团官方赛事 · 第一届选花杯",
+                description="百变兵团民间赛事 · 第一届选花杯",
                 registration_deadline=datetime.now() + timedelta(days=30),
             )
             db.add(tournament)

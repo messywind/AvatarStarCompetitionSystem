@@ -56,7 +56,7 @@ def tournament_teams(tournament_id: int, db: Session = Depends(get_db)):
     """Approved teams — only visible to the public once registration has closed."""
     t = _get_tournament_or_404(db, tournament_id)
     if not results_public(t):
-        raise HTTPException(status_code=403, detail="报名截止后才可查看参赛战队")
+        raise HTTPException(status_code=403, detail="报名截止后才可查看参赛名单")
     return (
         db.query(Team)
         .filter(Team.tournament_id == t.id, Team.status == STATUS_APPROVED)

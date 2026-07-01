@@ -22,7 +22,10 @@ api.interceptors.response.use(
     const detail = error?.response?.data?.detail
     if (Array.isArray(detail)) {
       // pydantic validation errors
-      error.message = detail.map((d) => d.msg).join('；')
+      error.message = detail.map((d) => {
+        if (d.msg === 'String should have at least 1 character') return '请填写必填项'
+        return d.msg
+      }).join('；')
     } else if (typeof detail === 'string') {
       error.message = detail
     }

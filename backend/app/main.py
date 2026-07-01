@@ -46,6 +46,36 @@ def run_migrations() -> None:
             conn.execute(text("ALTER TABLE teams ADD COLUMN tournament_id INT NULL"))
             conn.execute(text("ALTER TABLE teams ADD INDEX ix_teams_tournament_id (tournament_id)"))
 
+        registration_type_col = conn.execute(
+            text(
+                "SELECT COUNT(*) FROM information_schema.COLUMNS "
+                "WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'teams' "
+                "AND COLUMN_NAME = 'registration_type'"
+            )
+        ).scalar()
+        if not registration_type_col:
+            conn.execute(
+                text(
+                    "ALTER TABLE teams "
+                    "ADD COLUMN registration_type VARCHAR(16) NOT NULL DEFAULT 'team'"
+                )
+            )
+
+        contact_col = conn.execute(
+            text(
+                "SELECT COUNT(*) FROM information_schema.COLUMNS "
+                "WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'teams' "
+                "AND COLUMN_NAME = 'contact'"
+            )
+        ).scalar()
+        if not contact_col:
+            conn.execute(
+                text(
+                    "ALTER TABLE teams "
+                    "ADD COLUMN contact VARCHAR(128) NOT NULL DEFAULT ''"
+                )
+            )
+
 
 def bootstrap_default_tournament() -> None:
     """Ensure at least one tournament exists and every team belongs to one.
@@ -59,7 +89,7 @@ def bootstrap_default_tournament() -> None:
         if not default:
             default = Tournament(
                 name=DEFAULT_TOURNAMENT_NAME,
-                description="百变兵团官方赛事 · 第一届选花杯",
+                description="百变兵团民间赛事 · 第一届选花杯",
                 registration_deadline=datetime.now() + timedelta(days=30),
             )
             # Carry over the legacy single-bracket setting, if any.

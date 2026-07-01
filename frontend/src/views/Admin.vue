@@ -8,6 +8,7 @@ import RosterEditor from '../components/RosterEditor.vue'
 import Bracket from '../components/Bracket.vue'
 
 const STATUS_LABEL = { pending: '审核中', approved: '已通过', rejected: '未通过' }
+const REGISTRATION_LABEL = { team: '战队报名', solo: '个人报名' }
 
 const tab = ref('tournaments') // tournaments | teams | bracket
 const teams = ref([])
@@ -73,7 +74,7 @@ async function saveTour() {
   }
 }
 async function deleteTour(t) {
-  if (!confirm(`确定删除赛事「${t.name}」？其下所有战队与对阵图都会被删除，且不可撤销。`)) return
+  if (!confirm(`确定删除赛事「${t.name}」？其下所有报名记录与对阵图都会被删除，且不可撤销。`)) return
   try {
     await api.delete(`/admin/tournaments/${t.id}`)
     toast('赛事已删除', 'info')
@@ -130,7 +131,7 @@ async function review(team, status) {
 }
 
 async function removeTeam(team) {
-  if (!confirm(`确定删除战队「${team.name}」？此操作不可撤销。`)) return
+  if (!confirm(`确定删除报名记录「${team.name}」？此操作不可撤销。`)) return
   try {
     await api.delete(`/admin/teams/${team.id}`)
     toast('已删除', 'info')
@@ -143,8 +144,10 @@ async function removeTeam(team) {
 // ------- Create team modal -------
 function blankTeamForm() {
   return {
+    registration_type: 'team',
     name: '',
     captain: '',
+    contact: '',
     declaration: '',
     status: 'approved',
     players: [
@@ -159,8 +162,12 @@ function blankTeamForm() {
 const creating = ref(false)
 const createForm = reactive(blankTeamForm())
 const createValidation = computed(() => validateRoster(createForm.players))
+const createIsSolo = computed(() => createForm.registration_type === 'solo')
 const canCreate = computed(
-  () => createForm.name.trim() && createForm.captain.trim() && createValidation.value.errors.length === 0
+  () =>
+    createIsSolo.value
+      ? !!createForm.players[0]?.nickname?.trim() && !!createForm.contact.trim()
+      : createForm.name.trim() && createForm.captain.trim() && createForm.contact.trim() && createValidation.value.errors.length === 0
 )
 
 function openCreate() {
@@ -174,19 +181,30 @@ async function saveCreate() {
     return
   }
   try {
+    const players = createIsSolo.value
+      ? [
+          {
+            nickname: createForm.players[0].nickname.trim(),
+            profession: createForm.players[0].profession,
+            is_substitute: false,
+          },
+        ]
+      : createForm.players.map((p) => ({
+          nickname: p.nickname.trim(),
+          profession: p.profession,
+          is_substitute: p.is_substitute,
+        }))
     await api.post('/admin/teams', {
       tournament_id: selectedTid.value,
+      registration_type: createForm.registration_type,
       name: createForm.name.trim(),
       captain: createForm.captain.trim(),
+      contact: createForm.contact.trim(),
       declaration: createForm.declaration.trim(),
       status: createForm.status,
-      players: createForm.players.map((p) => ({
-        nickname: p.nickname.trim(),
-        profession: p.profession,
-        is_substitute: p.is_substitute,
-      })),
+      players,
     })
-    toast('战队已新增', 'success')
+    toast('报名记录已新增', 'success')
     creating.value = false
     await loadTeams()
   } catch (e) {
@@ -196,13 +214,16 @@ async function saveCreate() {
 
 // ------- Edit modal -------
 const editing = ref(null) // team being edited
-const editForm = reactive({ name: '', captain: '', declaration: '', players: [] })
+const editForm = reactive({ registration_type: 'team', name: '', captain: '', contact: '', declaration: '', players: [] })
 const editValidation = computed(() => validateRoster(editForm.players))
+const editIsSolo = computed(() => editForm.registration_type === 'solo')
 
 function openEdit(team) {
   editing.value = team
+  editForm.registration_type = team.registration_type || 'team'
   editForm.name = team.name
   editForm.captain = team.captain
+  editForm.contact = team.contact || ''
   editForm.declaration = team.declaration || ''
   editForm.players = team.players.map((p) => ({
     nickname: p.nickname,
@@ -212,20 +233,39 @@ function openEdit(team) {
 }
 
 async function saveEdit() {
-  if (editValidation.value.errors.length) {
+  if (!editForm.contact.trim()) {
+    toast('请填写联系方式', 'error')
+    return
+  }
+  if (editIsSolo.value && !editForm.players[0]?.nickname?.trim()) {
+    toast('请填写个人报名称呼', 'error')
+    return
+  }
+  if (!editIsSolo.value && editValidation.value.errors.length) {
     toast('阵容不符合规则，请修正', 'error')
     return
   }
   try {
+    const players = editIsSolo.value
+      ? [
+          {
+            nickname: editForm.players[0].nickname.trim(),
+            profession: editForm.players[0].profession,
+            is_substitute: false,
+          },
+        ]
+      : editForm.players.map((p) => ({
+          nickname: p.nickname.trim(),
+          profession: p.profession,
+          is_substitute: p.is_substitute,
+        }))
     await api.put(`/admin/teams/${editing.value.id}`, {
+      registration_type: editForm.registration_type,
       name: editForm.name.trim(),
       captain: editForm.captain.trim(),
+      contact: editForm.contact.trim(),
       declaration: editForm.declaration.trim(),
-      players: editForm.players.map((p) => ({
-        nickname: p.nickname.trim(),
-        profession: p.profession,
-        is_substitute: p.is_substitute,
-      })),
+      players,
     })
     toast('保存成功', 'success')
     editing.value = null
@@ -269,7 +309,7 @@ function removeMatch(round, mi) {
 
 function generateSkeleton() {
   const n = approvedTeams.value.length
-  if (n < 2) return toast('通过审核的战队不足 2 支，无法生成对阵图', 'error')
+  if (n < 2) return toast('通过审核的报名不足 2 条，无法生成对阵图', 'error')
   let size = 2
   while (size < n && size < 16) size *= 2
   const seeds = approvedTeams.value.map((t) => t.id)
@@ -321,7 +361,7 @@ onMounted(async () => {
       <span class="spacer"></span>
       <div class="tabs">
         <button class="btn sm" :class="{ ghost: tab !== 'tournaments' }" @click="tab = 'tournaments'">赛事管理</button>
-        <button class="btn sm" :class="{ ghost: tab !== 'teams' }" @click="tab = 'teams'">战队管理</button>
+        <button class="btn sm" :class="{ ghost: tab !== 'teams' }" @click="tab = 'teams'">报名管理</button>
         <button class="btn sm" :class="{ ghost: tab !== 'bracket' }" @click="tab = 'bracket'">对阵图配置</button>
       </div>
     </div>
@@ -348,7 +388,7 @@ onMounted(async () => {
       <div class="table-wrap">
         <table>
           <thead>
-            <tr><th>ID</th><th>赛事名称</th><th>报名截止</th><th>状态</th><th>战队数</th><th>操作</th></tr>
+            <tr><th>ID</th><th>赛事名称</th><th>报名截止</th><th>状态</th><th>报名数</th><th>操作</th></tr>
           </thead>
           <tbody>
             <tr v-if="!tournaments.length"><td colspan="6" class="muted">暂无赛事</td></tr>
@@ -386,33 +426,43 @@ onMounted(async () => {
         </select>
         <button class="btn ghost sm" @click="loadTeams">刷新</button>
         <span class="spacer"></span>
-        <span class="muted">共 {{ teams.length }} 支</span>
-        <button class="btn sm" :disabled="!selectedTid" @click="openCreate">+ 新增战队</button>
+        <span class="muted">共 {{ teams.length }} 条</span>
+        <button class="btn sm" :disabled="!selectedTid" @click="openCreate">+ 新增报名</button>
       </div>
 
       <div class="table-wrap">
         <table>
           <thead>
             <tr>
-              <th>ID</th><th>队伍名称</th><th>队长</th><th>报名账号</th><th>阵容</th><th>作战宣言</th><th>状态</th><th>操作</th>
+              <th>ID</th><th>类型</th><th>名称</th><th>队长/称呼</th><th>联系方式</th><th>报名账号</th><th>阵容</th><th>作战宣言</th><th>状态</th><th>操作</th>
             </tr>
           </thead>
           <tbody>
-            <tr v-if="loading"><td colspan="8" class="muted">加载中…</td></tr>
-            <tr v-else-if="!teams.length"><td colspan="8" class="muted">暂无数据</td></tr>
+            <tr v-if="loading"><td colspan="10" class="muted">加载中…</td></tr>
+            <tr v-else-if="!teams.length"><td colspan="10" class="muted">暂无数据</td></tr>
             <tr v-for="t in teams" :key="t.id">
               <td>{{ t.id }}</td>
+              <td><span class="chip sm type-chip">{{ REGISTRATION_LABEL[t.registration_type] || '报名' }}</span></td>
               <td><strong>{{ t.name }}</strong></td>
               <td>{{ t.captain }}</td>
+              <td>{{ t.contact }}</td>
               <td class="muted">{{ t.owner.username }}</td>
               <td>
-                <div class="prof-mini">
-                  <span v-for="prof in PROFESSIONS" :key="prof" class="chip sm">
-                    <span class="dot" :style="{ background: `var(--prof-${prof})` }"></span>
-                    {{ professionCounts(t.players)[prof] }}
+                <div v-if="t.registration_type === 'solo'" class="prof-mini">
+                  <span class="chip sm">
+                    <span class="dot" :style="{ background: `var(--prof-${t.players[0]?.profession || '突击'})` }"></span>
+                    {{ t.players[0]?.profession || '未填职业' }}
                   </span>
                 </div>
-                <span class="muted tiny">正式 {{ formalCount(t.players) }} · 替补 {{ subCount(t.players) }}</span>
+                <template v-else>
+                  <div class="prof-mini">
+                    <span v-for="prof in PROFESSIONS" :key="prof" class="chip sm">
+                      <span class="dot" :style="{ background: `var(--prof-${prof})` }"></span>
+                      {{ professionCounts(t.players)[prof] }}
+                    </span>
+                  </div>
+                  <span class="muted tiny">正式 {{ formalCount(t.players) }} · 替补 {{ subCount(t.players) }}</span>
+                </template>
               </td>
               <td class="declaration-cell">{{ t.declaration || '—' }}</td>
               <td>
@@ -439,13 +489,13 @@ onMounted(async () => {
         <div class="row">
           <h2 style="margin: 0">对阵图配置</h2>
           <span class="spacer"></span>
-          <button class="btn ghost sm" @click="generateSkeleton">按已通过战队自动生成</button>
+          <button class="btn ghost sm" @click="generateSkeleton">按已通过报名自动生成</button>
           <button class="btn ghost sm" @click="addRound">+ 添加轮次</button>
           <button class="btn success sm" @click="saveBracket">保存对阵图</button>
         </div>
         <p class="muted">
           配置各轮次的对阵与获胜方；获胜方会在浏览端高亮以展示晋级情况。
-          仅「已通过」的战队可被选择（当前 {{ approvedTeams.length }} 支）。
+          仅「已通过」的报名可被选择（当前 {{ approvedTeams.length }} 条）。
         </p>
 
         <div v-if="!rounds.length" class="muted">尚未添加任何轮次。</div>
@@ -505,7 +555,7 @@ onMounted(async () => {
           <div class="field">
             <label>报名截止时间 *</label>
             <input v-model="tourForm.registration_deadline" type="datetime-local" />
-            <p class="muted tiny" style="margin-top:0.35rem">截止后才会向所有人公开参赛战队与对阵图；截止前用户只能看到自己的战队。</p>
+            <p class="muted tiny" style="margin-top:0.35rem">截止后才会向所有人公开参赛名单与对阵图；截止前用户只能看到自己的报名。</p>
           </div>
           <button class="btn accent" style="width: 100%" @click="saveTour">
             {{ tourEditingId ? '保存修改' : '创建赛事' }}
@@ -519,13 +569,32 @@ onMounted(async () => {
       <div v-if="creating" class="modal-backdrop" @click.self="creating = false">
         <div class="modal">
           <div class="row">
-            <h2 style="margin: 0">新增战队</h2>
+            <h2 style="margin: 0">新增报名</h2>
             <span class="spacer"></span>
             <button class="btn ghost sm" @click="creating = false">取消</button>
           </div>
           <p class="muted">录入到「{{ selectedTournament?.name }}」；可直接指定初始审核状态。</p>
-          <div class="field"><label>队伍名称 *</label><input v-model="createForm.name" maxlength="128" placeholder="例如：烈焰星辰" /></div>
-          <div class="field"><label>队长 *</label><input v-model="createForm.captain" maxlength="64" placeholder="队长称呼" /></div>
+          <div class="field">
+            <label>报名类型</label>
+            <select v-model="createForm.registration_type" class="status-select">
+              <option value="team">战队报名</option>
+              <option value="solo">个人报名</option>
+            </select>
+          </div>
+          <template v-if="!createIsSolo">
+            <div class="field"><label>队伍名称 *</label><input v-model="createForm.name" maxlength="128" placeholder="例如：烈焰星辰" /></div>
+            <div class="field"><label>队长 *</label><input v-model="createForm.captain" maxlength="64" placeholder="队长称呼" /></div>
+          </template>
+          <template v-else>
+            <div class="field"><label>称呼 *</label><input v-model="createForm.players[0].nickname" maxlength="64" placeholder="个人报名称呼" /></div>
+            <div class="field">
+              <label>职业 *</label>
+              <select v-model="createForm.players[0].profession" class="status-select">
+                <option v-for="prof in PROFESSIONS" :key="prof" :value="prof">{{ prof }}</option>
+              </select>
+            </div>
+          </template>
+          <div class="field"><label>联系方式 *</label><input v-model="createForm.contact" maxlength="128" placeholder="QQ / 微信 / 手机号" /></div>
           <div class="field">
             <label>初始状态</label>
             <select v-model="createForm.status" class="status-select">
@@ -534,11 +603,13 @@ onMounted(async () => {
               <option value="rejected">未通过</option>
             </select>
           </div>
-          <h4>参赛阵容 *</h4>
-          <RosterEditor v-model="createForm.players" />
+          <template v-if="!createIsSolo">
+            <h4>参赛阵容 *</h4>
+            <RosterEditor v-model="createForm.players" />
+          </template>
           <div class="field" style="margin-top: 1rem"><label>作战宣言</label><textarea v-model="createForm.declaration" maxlength="2000"></textarea></div>
           <button class="btn accent" style="width: 100%" :disabled="!canCreate" @click="saveCreate">
-            新增战队
+            新增报名
           </button>
         </div>
       </div>
@@ -550,15 +621,35 @@ onMounted(async () => {
         <div class="modal">
           <div class="row">
             <h2 style="margin: 0">编辑战队 · {{ editing.name }}</h2>
+            <span class="chip sm type-chip">{{ REGISTRATION_LABEL[editForm.registration_type] || '报名' }}</span>
             <span class="spacer"></span>
             <button class="btn ghost sm" @click="editing = null">取消</button>
           </div>
-          <div class="field"><label>队伍名称</label><input v-model="editForm.name" /></div>
-          <div class="field"><label>队长</label><input v-model="editForm.captain" /></div>
-          <h4>参赛阵容</h4>
-          <RosterEditor v-model="editForm.players" />
+          <div class="field">
+            <label>报名类型</label>
+            <select v-model="editForm.registration_type" class="status-select">
+              <option value="team">战队报名</option>
+              <option value="solo">个人报名</option>
+            </select>
+          </div>
+          <template v-if="!editIsSolo">
+            <div class="field"><label>队伍名称</label><input v-model="editForm.name" /></div>
+            <div class="field"><label>队长</label><input v-model="editForm.captain" /></div>
+            <h4>参赛阵容</h4>
+            <RosterEditor v-model="editForm.players" />
+          </template>
+          <template v-else>
+            <div class="field"><label>称呼</label><input v-model="editForm.players[0].nickname" /></div>
+            <div class="field">
+              <label>职业</label>
+              <select v-model="editForm.players[0].profession" class="status-select">
+                <option v-for="prof in PROFESSIONS" :key="prof" :value="prof">{{ prof }}</option>
+              </select>
+            </div>
+          </template>
+          <div class="field"><label>联系方式</label><input v-model="editForm.contact" maxlength="128" /></div>
           <div class="field" style="margin-top: 1rem"><label>作战宣言</label><textarea v-model="editForm.declaration"></textarea></div>
-          <button class="btn accent" style="width: 100%" :disabled="editValidation.errors.length > 0" @click="saveEdit">
+          <button class="btn accent" style="width: 100%" :disabled="!editIsSolo && editValidation.errors.length > 0" @click="saveEdit">
             保存修改
           </button>
         </div>

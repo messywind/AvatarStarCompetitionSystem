@@ -16,6 +16,8 @@ from .database import Base
 STATUS_PENDING = "pending"
 STATUS_APPROVED = "approved"
 STATUS_REJECTED = "rejected"
+REGISTRATION_TEAM = "team"
+REGISTRATION_SOLO = "solo"
 
 # The four allowed professions
 PROFESSIONS = ["生化", "突击", "护卫", "重装"]
@@ -69,8 +71,12 @@ class Team(Base):
     __tablename__ = "teams"
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    registration_type: Mapped[str] = mapped_column(
+        String(16), default=REGISTRATION_TEAM, nullable=False
+    )
     name: Mapped[str] = mapped_column(String(128), nullable=False)
     captain: Mapped[str] = mapped_column(String(64), nullable=False)
+    contact: Mapped[str] = mapped_column(String(128), default="", nullable=False)
     declaration: Mapped[str] = mapped_column(Text, default="")
     status: Mapped[str] = mapped_column(String(16), default=STATUS_PENDING, nullable=False)
     review_note: Mapped[str] = mapped_column(String(255), default="")

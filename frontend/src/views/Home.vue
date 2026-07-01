@@ -11,10 +11,10 @@ const auth = useAuthStore()
   <section class="hero" :style="{ backgroundImage: `url(${bgBattle})` }">
     <div class="hero-overlay"></div>
     <div class="hero-inner">
-      <p class="kicker">AVATAR STAR · 官方赛事</p>
+      <p class="kicker">AVATAR STAR · 民间赛事</p>
       <h1 class="hero-title">百变兵团 <span>选花杯</span></h1>
       <p class="hero-sub">
-        组建你的五人战队，覆盖突击 · 生化 · 重装 · 护卫四大职业，踏上通往冠军的对阵之路。
+        组建你的五人战队，或直接以个人身份报名，覆盖突击 · 生化 · 重装 · 护卫四大职业，踏上通往冠军的对阵之路。
       </p>
       <div class="hero-cta">
         <RouterLink v-if="auth.isAuthenticated" to="/signup" class="link-cta">立即报名 ›</RouterLink>
@@ -33,8 +33,8 @@ const auth = useAuthStore()
       </div>
       <div class="card step-card" style="--i: 1">
         <div class="step-no">02</div>
-        <h3>提交战队</h3>
-        <p class="muted">填写队伍信息与五名正式队员及替补名单。</p>
+        <h3>提交报名</h3>
+        <p class="muted">可选择战队报名或个人报名，按对应方式填写资料。</p>
       </div>
       <div class="card step-card" style="--i: 2">
         <div class="step-no">03</div>
@@ -60,14 +60,14 @@ const auth = useAuthStore()
           <span class="flow-no">2</span>
           <div>
             <h3>填写战队信息</h3>
-            <p class="muted">队长进入“我要报名”，填写战队名称、联系方式、正式队员与替补名单。</p>
+            <p class="muted">选择战队报名时，队长填写战队名称、联系方式、正式队员与替补名单。</p>
           </div>
         </div>
         <div class="flow-item" style="--i: 2">
           <span class="flow-no">3</span>
           <div>
-            <h3>提交并等待审核</h3>
-            <p class="muted">确认名单无误后提交报名，管理员会核对人数、职业配置与报名资料。</p>
+            <h3>提交资料并等待审核</h3>
+            <p class="muted">个人报名填写称呼与职业，确认资料无误后提交，管理员会统一审核。</p>
           </div>
         </div>
         <div class="flow-item" style="--i: 3">
@@ -84,7 +84,7 @@ const auth = useAuthStore()
   <section class="showcase" :style="{ backgroundImage: `url(${bgTown})` }">
     <div class="showcase-inner">
       <h2>集结你的战队</h2>
-      <p>从小镇到战场，每一位选手都是胜利的关键。</p>
+      <p>从小镇到战场，无论是整队出征还是个人报名，每一位选手都是胜利的关键。</p>
     </div>
   </section>
 
