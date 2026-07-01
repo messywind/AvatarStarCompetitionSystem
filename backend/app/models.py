@@ -1,0 +1,76 @@
+from datetime import datetime
+
+from sqlalchemy import (
+    Boolean,
+    DateTime,
+    ForeignKey,
+    String,
+    Text,
+    func,
+)
+from sqlalchemy.orm import Mapped, mapped_column, relationship
+
+from .database import Base
+
+# Team review states
+STATUS_PENDING = "pending"
+STATUS_APPROVED = "approved"
+STATUS_REJECTED = "rejected"
+
+# The four allowed professions
+PROFESSIONS = ["生化", "突击", "护卫", "重装"]
+
+
+class User(Base):
+    __tablename__ = "users"
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    username: Mapped[str] = mapped_column(String(64), unique=True, index=True, nullable=False)
+    password_hash: Mapped[str] = mapped_column(String(255), nullable=False)
+    role: Mapped[str] = mapped_column(String(16), default="user", nullable=False)  # user | admin
+    created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
+
+    teams: Mapped[list["Team"]] = relationship(back_populates="owner")
+
+
+class Team(Base):
+    __tablename__ = "teams"
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    name: Mapped[str] = mapped_column(String(128), nullable=False)
+    captain: Mapped[str] = mapped_column(String(64), nullable=False)
+    declaration: Mapped[str] = mapped_column(Text, default="")
+    status: Mapped[str] = mapped_column(String(16), default=STATUS_PENDING, nullable=False)
+    review_note: Mapped[str] = mapped_column(String(255), default="")
+
+    owner_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"))
+    created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime, server_default=func.now(), onupdate=func.now()
+    )
+
+    owner: Mapped["User"] = relationship(back_populates="teams")
+    players: Mapped[list["Player"]] = relationship(
+        back_populates="team", cascade="all, delete-orphan", order_by="Player.id"
+    )
+
+
+class Player(Base):
+    __tablename__ = "players"
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    team_id: Mapped[int] = mapped_column(ForeignKey("teams.id", ondelete="CASCADE"))
+    nickname: Mapped[str] = mapped_column(String(64), nullable=False)
+    profession: Mapped[str] = mapped_column(String(16), nullable=False)
+    is_substitute: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+
+    team: Mapped["Team"] = relationship(back_populates="players")
+
+
+class Setting(Base):
+    """Generic key/value store. Used to persist the bracket configuration JSON."""
+
+    __tablename__ = "settings"
+
+    key: Mapped[str] = mapped_column(String(64), primary_key=True)
+    value: Mapped[str] = mapped_column(Text, default="")
