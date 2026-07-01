@@ -30,6 +30,48 @@
 
 ## 运行方式
 
+## Docker 部署
+
+服务器安装好 Docker 和 Docker Compose 后，可以用这一套命令部署：
+
+```bash
+git clone git@github.com:messywind/AvatarStarCompetitionSystem.git
+cd AvatarStarCompetitionSystem
+
+cp .env.production.example .env
+nano .env
+
+docker compose up -d --build
+```
+
+`.env` 里至少要改这些值：
+
+```bash
+MYSQL_ROOT_PASSWORD=一个强 root 密码
+DB_PASSWORD=一个强数据库用户密码
+SECRET_KEY=一长串随机密钥
+ADMIN_PASSWORD=管理员初始密码
+CORS_ORIGINS=http://服务器IP或域名
+```
+
+启动后访问：
+
+- 前端：`http://服务器IP/`
+- 健康检查：`http://服务器IP/api/health`
+- API 文档：`http://服务器IP/docs`
+
+常用运维命令：
+
+```bash
+docker compose ps
+docker compose logs -f backend
+docker compose logs -f mysql
+docker compose down
+docker compose down -v  # 会删除 MySQL 数据，谨慎使用
+```
+
+MySQL 数据保存在 Docker volume `avatarstarcompetitionsystem_mysql_data` 中，正常 `docker compose down` 不会删库。
+
 ### 1. 准备 MySQL
 需要一个可连接的 MySQL 服务（8.0+）。数据库会在后端启动时自动创建，无需手动建库。
 
