@@ -1,9 +1,9 @@
-import tournamentFirstPoster from './assets/tournament-first-poster.png'
 import tournamentAvatar from './assets/tournament-avatar.jpg'
 
+// Poster content is now generated from each tournament's configurable data
+// (see components/Poster.vue); only the card avatar remains a static asset.
 const defaultVisual = {
   avatar: tournamentAvatar,
-  poster: tournamentFirstPoster,
 }
 
 const tournamentVisuals = [
@@ -11,7 +11,6 @@ const tournamentVisuals = [
     id: 1,
     matchName: '第一届',
     avatar: tournamentAvatar,
-    poster: tournamentFirstPoster,
   },
 ]
 

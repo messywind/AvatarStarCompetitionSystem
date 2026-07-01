@@ -32,15 +32,24 @@ async function loadTournaments() {
   }
 }
 
+const POSTER_KEYS = [
+  'format', 'profession_limit', 'mode_limit', 'item_limit', 'equipment_limit', 'other_limit',
+  'reward_champion', 'reward_runner_up', 'reward_third', 'reward_fourth', 'reward_other',
+]
+function blankPoster() {
+  return Object.fromEntries(POSTER_KEYS.map((k) => [k, '']))
+}
+
 const tourModal = ref(false)
 const tourEditingId = ref(null)
-const tourForm = reactive({ name: '', description: '', registration_deadline: '' })
+const tourForm = reactive({ name: '', description: '', registration_deadline: '', poster: blankPoster() })
 
 function openTourCreate() {
   tourEditingId.value = null
   tourForm.name = ''
   tourForm.description = ''
   tourForm.registration_deadline = ''
+  Object.assign(tourForm.poster, blankPoster())
   tourModal.value = true
 }
 function openTourEdit(t) {
@@ -48,6 +57,7 @@ function openTourEdit(t) {
   tourForm.name = t.name
   tourForm.description = t.description || ''
   tourForm.registration_deadline = toLocalInput(t.registration_deadline)
+  Object.assign(tourForm.poster, blankPoster(), t.poster || {})
   tourModal.value = true
 }
 async function saveTour() {
@@ -57,6 +67,7 @@ async function saveTour() {
     name: tourForm.name.trim(),
     description: tourForm.description.trim(),
     registration_deadline: tourForm.registration_deadline,
+    poster: { ...tourForm.poster },
   }
   try {
     if (tourEditingId.value) {
@@ -557,6 +568,23 @@ onMounted(async () => {
             <input v-model="tourForm.registration_deadline" type="datetime-local" />
             <p class="muted tiny" style="margin-top:0.35rem">截止后才会向所有人公开参赛名单与对阵图；截止前用户只能看到自己的报名。</p>
           </div>
+
+          <h4 class="poster-group">比赛详情 · 参赛规则</h4>
+          <p class="muted tiny" style="margin:-0.4rem 0 0.7rem">以下内容将自动生成为比赛详情海报，用户在「比赛详情」中查看。每行一条，留空则不显示该项。</p>
+          <div class="field"><label>比赛形式</label><textarea v-model="tourForm.poster.format" rows="1" placeholder="例如：5v5"></textarea></div>
+          <div class="field"><label>职业限制</label><textarea v-model="tourForm.poster.profession_limit" placeholder="每行一条，例如：&#10;各职业不得超过两名（生化限一名）&#10;每个职业至少有一个"></textarea></div>
+          <div class="field"><label>模式限制</label><textarea v-model="tourForm.poster.mode_limit" placeholder="例如：预选赛模式为 占点 夺旗 团战 纯随机"></textarea></div>
+          <div class="field"><label>药物及道具限制</label><textarea v-model="tourForm.poster.item_limit" placeholder="每行一条"></textarea></div>
+          <div class="field"><label>装备限制</label><textarea v-model="tourForm.poster.equipment_limit" placeholder="每行一条"></textarea></div>
+          <div class="field"><label>其他限制</label><textarea v-model="tourForm.poster.other_limit" placeholder="例如：其余以赛事官方为准"></textarea></div>
+
+          <h4 class="poster-group">比赛详情 · 官方奖励</h4>
+          <div class="field"><label>冠军奖励</label><textarea v-model="tourForm.poster.reward_champion" rows="2" placeholder="例如：三把 ROG 夜魔键盘 价值 5000 元（队伍自行分配）"></textarea></div>
+          <div class="field"><label>亚军奖励</label><textarea v-model="tourForm.poster.reward_runner_up" rows="2" placeholder="例如：三把龙鳞 2 鼠标 价值 3000 元"></textarea></div>
+          <div class="field"><label>季军奖励</label><textarea v-model="tourForm.poster.reward_third" rows="2" placeholder="例如：每人 1500 兑换卷"></textarea></div>
+          <div class="field"><label>殿军奖励</label><textarea v-model="tourForm.poster.reward_fourth" rows="2" placeholder="例如：每人 500 兑换卷"></textarea></div>
+          <div class="field"><label>其他奖励</label><textarea v-model="tourForm.poster.reward_other" rows="2" placeholder="例如：更有众多参与奖神秘奖等待抽选"></textarea></div>
+
           <button class="btn accent" style="width: 100%" @click="saveTour">
             {{ tourEditingId ? '保存修改' : '创建赛事' }}
           </button>
@@ -676,7 +704,13 @@ onMounted(async () => {
 .mrow { display: flex; align-items: center; gap: 0.4rem; margin-bottom: 0.4rem; }
 .vs { color: var(--accent); font-weight: 800; font-size: 0.8rem; }
 .winner-sel { width: 130px; }
-.tour-modal { width: min(520px, 100%); }
+.tour-modal { width: min(560px, 100%); }
+.poster-group {
+  margin: 1.4rem 0 0.8rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--border);
+  font-size: 0.98rem;
+}
 .status-select { width: 200px; }
 
 @keyframes editor-round-in {

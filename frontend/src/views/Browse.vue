@@ -6,6 +6,7 @@ import { PROFESSIONS } from '../roster'
 import { formatDeadline, countdown } from '../time'
 import { useAuthStore } from '../stores/auth'
 import Bracket from '../components/Bracket.vue'
+import Poster from '../components/Poster.vue'
 import { tournamentVisual } from '../tournamentAssets'
 
 const auth = useAuthStore()
@@ -261,20 +262,9 @@ onMounted(async () => {
     <!-- Tournament poster modal -->
     <Transition name="modal-fade">
       <div v-if="detailTournament" class="modal-backdrop poster-backdrop" @click.self="detailTournament = null">
-        <div class="modal poster-modal">
-          <div class="row poster-head">
-            <div>
-              <h2>{{ detailTournament.name }}</h2>
-              <p class="muted">{{ detailTournament.description || '比赛详情海报' }}</p>
-            </div>
-            <span class="spacer"></span>
-            <button class="btn ghost sm" @click="detailTournament = null">关闭</button>
-          </div>
-          <img
-            :src="tournamentVisual(detailTournament).poster"
-            :alt="`${detailTournament.name} 海报`"
-            class="poster-image"
-          />
+        <div class="poster-shell">
+          <button class="poster-close" @click="detailTournament = null">✕</button>
+          <Poster :tournament="detailTournament" />
         </div>
       </div>
     </Transition>
@@ -379,25 +369,30 @@ onMounted(async () => {
 .small { font-size: 0.8rem; }
 
 .poster-backdrop { padding: 1rem; }
-.poster-modal {
-  width: min(760px, 100%);
-  padding: 1rem;
+.poster-shell {
+  position: relative;
+  width: min(720px, 100%);
+  max-height: 92vh;
+  overflow: auto;
+  border-radius: var(--radius);
 }
-.poster-head {
-  align-items: flex-start;
-  padding: 0.45rem 0.45rem 0.9rem;
+.poster-close {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  z-index: 2;
+  width: 32px;
+  height: 32px;
+  border: none;
+  border-radius: 50%;
+  cursor: pointer;
+  color: #fff;
+  font-size: 0.9rem;
+  background: rgba(0, 0, 0, 0.4);
+  backdrop-filter: blur(6px);
+  transition: background 0.15s;
 }
-.poster-head h2 { margin-bottom: 0.25rem; }
-.poster-head p { margin: 0; }
-.poster-image {
-  display: block;
-  width: min(100%, 560px);
-  max-height: 78vh;
-  margin: 0 auto;
-  border-radius: var(--radius-sm);
-  object-fit: contain;
-  background: #05070f;
-}
+.poster-close:hover { background: rgba(0, 0, 0, 0.65); }
 
 .content-swap-enter-active,
 .content-swap-leave-active {

@@ -1,3 +1,4 @@
+import json
 from collections import Counter
 from datetime import datetime
 from typing import Optional
@@ -29,16 +30,45 @@ class PasswordChange(BaseModel):
 # ---------- Tournaments ----------
 
 
+class PosterConfig(BaseModel):
+    """Configurable poster content for a tournament (rules + rewards)."""
+
+    # 参赛规则
+    format: str = Field(default="", max_length=2000)            # 比赛形式
+    profession_limit: str = Field(default="", max_length=2000)  # 职业限制
+    mode_limit: str = Field(default="", max_length=2000)        # 模式限制
+    item_limit: str = Field(default="", max_length=2000)        # 药物及道具限制
+    equipment_limit: str = Field(default="", max_length=2000)   # 装备限制
+    other_limit: str = Field(default="", max_length=2000)       # 其他限制
+    # 官方奖励
+    reward_champion: str = Field(default="", max_length=2000)   # 冠军奖励
+    reward_runner_up: str = Field(default="", max_length=2000)  # 亚军奖励
+    reward_third: str = Field(default="", max_length=2000)      # 季军奖励
+    reward_fourth: str = Field(default="", max_length=2000)     # 殿军奖励
+    reward_other: str = Field(default="", max_length=2000)      # 其他奖励
+
+
+def poster_from_json(raw: str | None) -> "PosterConfig":
+    if not raw:
+        return PosterConfig()
+    try:
+        return PosterConfig(**json.loads(raw))
+    except (ValueError, TypeError):
+        return PosterConfig()
+
+
 class TournamentCreate(BaseModel):
     name: str = Field(min_length=1, max_length=128)
     description: str = Field(default="", max_length=2000)
     registration_deadline: datetime
+    poster: Optional[PosterConfig] = None
 
 
 class TournamentUpdate(BaseModel):
     name: Optional[str] = Field(default=None, max_length=128)
     description: Optional[str] = Field(default=None, max_length=2000)
     registration_deadline: Optional[datetime] = None
+    poster: Optional[PosterConfig] = None
 
 
 class TournamentOut(BaseModel):
@@ -49,6 +79,7 @@ class TournamentOut(BaseModel):
     registration_open: bool
     results_public: bool
     team_count: int = 0
+    poster: PosterConfig = PosterConfig()
 
 
 class UserOut(BaseModel):

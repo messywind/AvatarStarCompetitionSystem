@@ -76,6 +76,16 @@ def run_migrations() -> None:
                 )
             )
 
+        poster_col = conn.execute(
+            text(
+                "SELECT COUNT(*) FROM information_schema.COLUMNS "
+                "WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'tournaments' "
+                "AND COLUMN_NAME = 'poster_json'"
+            )
+        ).scalar()
+        if not poster_col:
+            conn.execute(text("ALTER TABLE tournaments ADD COLUMN poster_json TEXT NULL"))
+
 
 def bootstrap_default_tournament() -> None:
     """Ensure at least one tournament exists and every team belongs to one.

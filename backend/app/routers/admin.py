@@ -23,6 +23,7 @@ from ..schemas import (
     TournamentCreate,
     TournamentOut,
     TournamentUpdate,
+    poster_from_json,
 )
 
 router = APIRouter(prefix="/api/admin", tags=["admin"], dependencies=[Depends(require_admin)])
@@ -59,6 +60,7 @@ def _tournament_out(db: Session, t: Tournament) -> TournamentOut:
         registration_open=registration_open(t),
         results_public=results_public(t),
         team_count=count,
+        poster=poster_from_json(t.poster_json),
     )
 
 
@@ -77,6 +79,7 @@ def create_tournament(payload: TournamentCreate, db: Session = Depends(get_db)):
         name=payload.name,
         description=payload.description,
         registration_deadline=payload.registration_deadline,
+        poster_json=payload.poster.model_dump_json() if payload.poster else "",
     )
     db.add(t)
     db.commit()
@@ -93,6 +96,8 @@ def update_tournament(tournament_id: int, payload: TournamentUpdate, db: Session
         t.description = payload.description
     if payload.registration_deadline is not None:
         t.registration_deadline = payload.registration_deadline
+    if payload.poster is not None:
+        t.poster_json = payload.poster.model_dump_json()
     db.commit()
     db.refresh(t)
     return _tournament_out(db, t)
