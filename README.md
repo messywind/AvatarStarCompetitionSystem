@@ -51,14 +51,26 @@ MYSQL_ROOT_PASSWORD=一个强 root 密码
 DB_PASSWORD=一个强数据库用户密码
 SECRET_KEY=一长串随机密钥
 ADMIN_PASSWORD=管理员初始密码
-CORS_ORIGINS=http://服务器IP或域名
+HTTP_PORT=39217
+VITE_BASE_PATH=/avatarstar/
+CORS_ORIGINS=http://服务器IP或域名:39217
 ```
 
 启动后访问：
 
-- 前端：`http://服务器IP/`
-- 健康检查：`http://服务器IP/api/health`
-- API 文档：`http://服务器IP/docs`
+- 前端：`http://服务器IP:39217/avatarstar/`
+- 健康检查：`http://服务器IP:39217/avatarstar/api/health`
+- API 文档：`http://服务器IP:39217/avatarstar/docs`
+
+如果使用 IP `45.202.249.207`，则 `.env` 中可设置：
+
+```bash
+HTTP_PORT=39217
+VITE_BASE_PATH=/avatarstar/
+CORS_ORIGINS=http://45.202.249.207:39217
+```
+
+注意：`CORS_ORIGINS` 只能写 `协议 + IP/域名 + 端口`，不要写 `/avatarstar`。
 
 常用运维命令：
 

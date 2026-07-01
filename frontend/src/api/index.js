@@ -1,7 +1,9 @@
 import axios from 'axios'
 
+const apiBasePath = import.meta.env.BASE_URL.replace(/\/$/, '')
+
 const api = axios.create({
-  baseURL: '/api',
+  baseURL: `${apiBasePath}/api`,
 })
 
 // Attach bearer token from localStorage on every request
