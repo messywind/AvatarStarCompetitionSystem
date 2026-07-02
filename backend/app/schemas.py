@@ -8,6 +8,7 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator, model_valida
 from .models import PROFESSIONS, REGISTRATION_SOLO, REGISTRATION_TEAM
 
 REGISTRATION_TYPES = (REGISTRATION_TEAM, REGISTRATION_SOLO)
+MAX_SUBSTITUTES = 1
 
 # ---------- Auth ----------
 
@@ -161,6 +162,8 @@ class TeamCreate(BaseModel):
             raise ValueError("请填写队长")
         if len(formal) != 5:
             raise ValueError("正式队员必须严格为 5 人")
+        if len(self.players) - len(formal) > MAX_SUBSTITUTES:
+            raise ValueError(f"替补队员最多 {MAX_SUBSTITUTES} 人")
 
         counts = Counter(p.profession for p in formal)
         for prof in PROFESSIONS:
@@ -224,6 +227,8 @@ class TeamUpdate(BaseModel):
             else:
                 if len(formal) != 5:
                     raise ValueError("正式队员必须严格为 5 人")
+                if len(self.players) - len(formal) > MAX_SUBSTITUTES:
+                    raise ValueError(f"替补队员最多 {MAX_SUBSTITUTES} 人")
                 counts = Counter(p.profession for p in formal)
                 for prof in PROFESSIONS:
                     c = counts.get(prof, 0)

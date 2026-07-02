@@ -1,6 +1,6 @@
 <script setup>
 import { computed } from 'vue'
-import { PROFESSIONS, validateRoster } from '../roster'
+import { PROFESSIONS, MAX_SUBSTITUTES, validateRoster } from '../roster'
 
 const props = defineProps({
   modelValue: { type: Array, required: true }, // array of players
@@ -67,8 +67,15 @@ function removePlayer(target) {
 
     <!-- Substitutes -->
     <div class="group-label sub">
-      替补队员（{{ subs.length }}）· 数量不限
-      <button type="button" class="btn ghost sm" @click="addPlayer(true)">+ 添加替补</button>
+      替补队员（{{ subs.length }} / {{ MAX_SUBSTITUTES }}）· 最多 {{ MAX_SUBSTITUTES }} 人
+      <button
+        type="button"
+        class="btn ghost sm"
+        :disabled="subs.length >= MAX_SUBSTITUTES"
+        @click="addPlayer(true)"
+      >
+        + 添加替补
+      </button>
     </div>
     <div v-for="(p, i) in players" :key="'s' + i">
       <div v-if="p.is_substitute" class="player-row">

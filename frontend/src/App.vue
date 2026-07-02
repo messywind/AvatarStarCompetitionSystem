@@ -3,6 +3,10 @@ import { RouterLink, RouterView, useRouter } from 'vue-router'
 import { useAuthStore } from './stores/auth'
 import { toastState } from './toast'
 import logo from './assets/logo.png'
+import logoFooter from './assets/logo-footer.png'
+import logoClaude from './assets/logo-claude.svg'
+import logoOpenai from './assets/logo-openai.svg'
+import avatarMessywind from './assets/credit-messywind.jpg'
 
 const auth = useAuthStore()
 const router = useRouter()
@@ -45,14 +49,23 @@ function logout() {
   </header>
 
   <main>
-    <RouterView />
+    <RouterView v-slot="{ Component }">
+      <Transition name="route" mode="out-in">
+        <component :is="Component" />
+      </Transition>
+    </RouterView>
   </main>
 
   <footer class="site-footer">
     <div class="footer-inner">
-      <img :src="logo" alt="百变兵团" class="footer-logo" />
+      <img :src="logoFooter" alt="百变兵团" class="footer-logo" />
       <span class="muted">百变兵团 · 选花杯报名系统</span>
-      <span class="footer-support muted">技术支持：ClaudeCode、Codex、凌乱之风</span>
+      <span class="footer-support muted">
+        技术支持：
+        <span class="credit"><img :src="logoClaude" alt="" class="credit-icon" />ClaudeCode</span>
+        <span class="credit"><img :src="logoOpenai" alt="" class="credit-icon" />Codex</span>
+        <span class="credit"><img :src="avatarMessywind" alt="凌乱之风头像" class="credit-icon credit-avatar" />凌乱之风</span>
+      </span>
       <span class="footer-copy muted">© 2026 Avatar Star</span>
     </div>
   </footer>
@@ -159,6 +172,29 @@ function logout() {
 .role-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--success); }
 .role-dot.admin { background: var(--accent); }
 
+/* Route transitions — quick fade-through, Apple-style restraint */
+.route-enter-active {
+  transition: opacity 0.22s var(--ease-out), transform 0.26s var(--ease-soft);
+}
+.route-leave-active {
+  transition: opacity 0.15s var(--ease-out), transform 0.15s var(--ease-out);
+}
+.route-enter-from {
+  opacity: 0;
+  transform: translateY(10px);
+}
+.route-leave-to {
+  opacity: 0;
+  transform: translateY(-6px);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .route-enter-active,
+  .route-leave-active {
+    transition: none;
+  }
+}
+
 .site-footer {
   border-top: 1px solid var(--border);
   background: var(--bg-2);
@@ -168,8 +204,28 @@ function logout() {
   max-width: 1120px; margin: 0 auto; padding: 1.75rem 1.5rem;
   display: flex; align-items: center; gap: 0.9rem; font-size: 0.85rem;
 }
-.footer-logo { height: 26px; width: auto; opacity: 0.9; }
-.footer-support { margin-left: 0.4rem; }
+.footer-logo { height: 26px; width: auto; }
+.footer-support {
+  margin-left: 0.4rem;
+  display: inline-flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.15rem 0.7rem;
+}
+.credit {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.32rem;
+}
+.credit-icon {
+  width: 15px;
+  height: 15px;
+  object-fit: contain;
+}
+.credit-avatar {
+  border-radius: 50%;
+  object-fit: cover;
+}
 .footer-copy { margin-left: auto; }
 
 @media (max-width: 720px) {

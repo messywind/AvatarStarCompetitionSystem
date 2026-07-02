@@ -8,94 +8,96 @@ const auth = useAuthStore()
 </script>
 
 <template>
-  <section class="hero" :style="{ backgroundImage: `url(${bgBattle})` }">
-    <div class="hero-overlay"></div>
-    <div class="hero-inner">
-      <p class="kicker">AVATAR STAR · 民间赛事</p>
-      <h1 class="hero-title">百变兵团 <span>选花杯</span></h1>
-      <p class="hero-sub">
-        组建你的五人战队，或直接以个人身份报名，覆盖突击 · 生化 · 重装 · 护卫四大职业，踏上通往冠军的对阵之路。
-      </p>
-      <div class="hero-cta">
-        <RouterLink v-if="auth.isAuthenticated" to="/signup" class="link-cta">立即报名 ›</RouterLink>
-        <RouterLink v-else to="/register" class="link-cta">注册并报名 ›</RouterLink>
-        <RouterLink to="/browse" class="link-cta ghost">查看赛事对阵 ›</RouterLink>
-      </div>
-    </div>
-  </section>
-
-  <div class="container">
-    <div class="grid cols-3 steps">
-      <div class="card step-card" style="--i: 0">
-        <div class="step-no">01</div>
-        <h3>注册账号</h3>
-        <p class="muted">创建你的选手账号，一分钟即可完成。</p>
-      </div>
-      <div class="card step-card" style="--i: 1">
-        <div class="step-no">02</div>
-        <h3>提交报名</h3>
-        <p class="muted">可选择战队报名或个人报名，按对应方式填写资料。</p>
-      </div>
-      <div class="card step-card" style="--i: 2">
-        <div class="step-no">03</div>
-        <h3>审核晋级</h3>
-        <p class="muted">通过审核后进入对阵图，逐轮争夺冠军。</p>
-      </div>
-    </div>
-
-    <section class="registration-flow">
-      <div class="flow-heading">
-        <h2>注册报名流程</h2>
-        <p class="muted">从创建账号到通过审核，队长按流程提交资料即可完成报名。</p>
-      </div>
-      <div class="flow-list">
-        <div class="flow-item" style="--i: 0">
-          <span class="flow-no">1</span>
-          <div>
-            <h3>创建选手账号</h3>
-            <p class="muted">使用常用账号注册并登录系统，后续报名、查询审核结果都在同一账号下完成。</p>
-          </div>
-        </div>
-        <div class="flow-item" style="--i: 1">
-          <span class="flow-no">2</span>
-          <div>
-            <h3>填写战队信息</h3>
-            <p class="muted">选择战队报名时，队长填写战队名称、联系方式、正式队员与替补名单。</p>
-          </div>
-        </div>
-        <div class="flow-item" style="--i: 2">
-          <span class="flow-no">3</span>
-          <div>
-            <h3>提交资料并等待审核</h3>
-            <p class="muted">个人报名填写称呼与职业，确认资料无误后提交，管理员会统一审核。</p>
-          </div>
-        </div>
-        <div class="flow-item" style="--i: 3">
-          <span class="flow-no">4</span>
-          <div>
-            <h3>通过后查看赛程</h3>
-            <p class="muted">审核通过的队伍会进入赛事浏览页，可查看对阵图并关注后续比赛安排。</p>
-          </div>
+  <div class="home">
+    <section class="hero" :style="{ backgroundImage: `url(${bgBattle})` }">
+      <div class="hero-overlay"></div>
+      <div class="hero-inner">
+        <p class="kicker">AVATAR STAR · 民间赛事</p>
+        <h1 class="hero-title">百变兵团 <span>选花杯</span></h1>
+        <p class="hero-sub">
+          组建你的五人战队，或直接以个人身份报名，覆盖突击 · 生化 · 重装 · 护卫四大职业，踏上通往冠军的对阵之路。
+        </p>
+        <div class="hero-cta">
+          <RouterLink v-if="auth.isAuthenticated" to="/signup" class="link-cta">立即报名 ›</RouterLink>
+          <RouterLink v-else to="/register" class="link-cta">注册并报名 ›</RouterLink>
+          <RouterLink to="/browse" class="link-cta ghost">查看赛事对阵 ›</RouterLink>
         </div>
       </div>
     </section>
-  </div>
 
-  <section class="showcase" :style="{ backgroundImage: `url(${bgTown})` }">
-    <div class="showcase-inner">
-      <h2>集结你的战队</h2>
-      <p>从小镇到战场，无论是整队出征还是个人报名，每一位选手都是胜利的关键。</p>
+    <div class="container">
+      <div class="grid cols-3 steps">
+        <div class="card step-card" style="--i: 0">
+          <div class="step-no">01</div>
+          <h3>注册账号</h3>
+          <p class="muted">创建你的选手账号，一分钟即可完成。</p>
+        </div>
+        <div class="card step-card" style="--i: 1">
+          <div class="step-no">02</div>
+          <h3>提交报名</h3>
+          <p class="muted">可选择战队报名或个人报名，按对应方式填写资料。</p>
+        </div>
+        <div class="card step-card" style="--i: 2">
+          <div class="step-no">03</div>
+          <h3>审核晋级</h3>
+          <p class="muted">通过审核后进入对阵图，逐轮争夺冠军。</p>
+        </div>
+      </div>
+
+      <section class="registration-flow">
+        <div class="flow-heading">
+          <h2>注册报名流程</h2>
+          <p class="muted">从创建账号到通过审核，队长按流程提交资料即可完成报名。</p>
+        </div>
+        <div class="flow-list">
+          <div class="flow-item" style="--i: 0">
+            <span class="flow-no">1</span>
+            <div>
+              <h3>创建选手账号</h3>
+              <p class="muted">使用常用账号注册并登录系统，后续报名、查询审核结果都在同一账号下完成。</p>
+            </div>
+          </div>
+          <div class="flow-item" style="--i: 1">
+            <span class="flow-no">2</span>
+            <div>
+              <h3>填写战队信息</h3>
+              <p class="muted">选择战队报名时，队长填写战队名称、联系方式、正式队员与替补名单。</p>
+            </div>
+          </div>
+          <div class="flow-item" style="--i: 2">
+            <span class="flow-no">3</span>
+            <div>
+              <h3>提交资料并等待审核</h3>
+              <p class="muted">个人报名填写称呼与职业，确认资料无误后提交，管理员会统一审核。</p>
+            </div>
+          </div>
+          <div class="flow-item" style="--i: 3">
+            <span class="flow-no">4</span>
+            <div>
+              <h3>通过后查看赛程</h3>
+              <p class="muted">审核通过的队伍会进入赛事浏览页，可查看对阵图并关注后续比赛安排。</p>
+            </div>
+          </div>
+        </div>
+      </section>
     </div>
-  </section>
 
-  <div class="container">
-    <div class="panel rules">
-      <h2>组队规则</h2>
-      <ul>
-        <li>每支战队 <strong>正式队员严格为 5 人</strong>，替补人数不限。</li>
-        <li>四大职业 <strong>每种至少 1 人、至多 2 人</strong>，即 2+1+1+1 的组合。</li>
-        <li>报名提交后需经 <strong>管理员审核</strong>，通过后方可出现在赛事浏览页。</li>
-      </ul>
+    <section class="showcase" :style="{ backgroundImage: `url(${bgTown})` }">
+      <div class="showcase-inner">
+        <h2>集结你的战队</h2>
+        <p>从小镇到战场，无论是整队出征还是个人报名，每一位选手都是胜利的关键。</p>
+      </div>
+    </section>
+
+    <div class="container">
+      <div class="panel rules">
+        <h2>组队规则</h2>
+        <ul>
+          <li>每支战队 <strong>正式队员严格为 5 人</strong>，替补人数不限。</li>
+          <li>四大职业 <strong>每种至少 1 人、至多 2 人</strong>，即 2+1+1+1 的组合。</li>
+          <li>报名提交后需经 <strong>管理员审核</strong>，通过后方可出现在赛事浏览页。</li>
+        </ul>
+      </div>
     </div>
   </div>
 </template>

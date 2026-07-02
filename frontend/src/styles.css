@@ -102,7 +102,49 @@ h1 { font-size: clamp(1.8rem, 3vw, 2.6rem); }
 .btn.danger:hover { background: #ff5147; }
 .btn.success { background: var(--success); }
 .btn.success:hover { background: #30d158; }
-.btn.sm { padding: 0.32rem 0.85rem; font-size: 0.82rem; }
+.btn.sm { padding: 0.32rem 0.85rem; font-size: 0.82rem; min-height: 32px; }
+
+/* Tinted buttons (iOS-style quiet actions) */
+.btn.tint { background: rgba(0, 113, 227, 0.1); color: var(--primary); }
+.btn.tint:hover { background: rgba(0, 113, 227, 0.17); }
+.btn.tint.danger { background: rgba(255, 59, 48, 0.1); color: var(--danger); }
+.btn.tint.danger:hover { background: rgba(255, 59, 48, 0.17); }
+.btn.tint.success { background: rgba(52, 199, 89, 0.14); color: #1f8a3d; }
+.btn.tint.success:hover { background: rgba(52, 199, 89, 0.22); }
+
+/* ---------- Segmented control (Apple style) ---------- */
+.segmented {
+  display: inline-flex;
+  align-items: stretch;
+  background: rgba(0, 0, 0, 0.055);
+  border-radius: 12px;
+  padding: 3px;
+  gap: 2px;
+}
+.segmented button {
+  border: none;
+  background: transparent;
+  border-radius: 9px;
+  padding: 0.42rem 1.05rem;
+  font-size: 0.86rem;
+  font-weight: 500;
+  font-family: inherit;
+  color: var(--text);
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background 0.18s var(--ease-out), box-shadow 0.18s var(--ease-out), color 0.18s var(--ease-out);
+  touch-action: manipulation;
+}
+.segmented button:hover:not(.active) { color: rgba(29, 29, 31, 0.7); }
+.segmented button.active {
+  background: #fff;
+  font-weight: 600;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1), 0 0.5px 1px rgba(0, 0, 0, 0.05);
+}
+.segmented button:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(0, 113, 227, 0.22);
+}
 
 /* ---------- Panels / cards ---------- */
 .panel {
@@ -151,13 +193,29 @@ textarea { resize: vertical; min-height: 80px; }
   border-radius: var(--radius-sm);
   border: 1px solid var(--border);
   background: #fff;
+  box-shadow: var(--shadow-sm);
   -webkit-overflow-scrolling: touch;
 }
 table { width: 100%; border-collapse: collapse; font-size: 0.9rem; }
-th, td { padding: 0.75rem 0.9rem; text-align: left; border-bottom: 1px solid var(--border); vertical-align: top; }
-th { background: var(--bg-2); color: var(--muted); font-weight: 600; white-space: nowrap; }
+th, td { padding: 0.8rem 1rem; text-align: left; border-bottom: 1px solid rgba(0, 0, 0, 0.06); vertical-align: top; }
+th {
+  background: rgba(0, 0, 0, 0.02);
+  color: var(--muted);
+  font-weight: 500;
+  font-size: 0.78rem;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+  border-bottom-color: var(--border);
+}
 tbody tr:last-child td { border-bottom: none; }
-tbody tr:hover { background: rgba(0, 0, 0, 0.02); }
+tbody tr { transition: background 0.15s var(--ease-out); }
+tbody tr:hover { background: rgba(0, 113, 227, 0.03); }
+.table-empty {
+  text-align: center;
+  padding: 2.4rem 0 !important;
+  color: var(--muted);
+  font-size: 0.9rem;
+}
 
 /* ---------- Badges / chips ---------- */
 .badge {
@@ -166,6 +224,7 @@ tbody tr:hover { background: rgba(0, 0, 0, 0.02); }
   border-radius: 999px;
   font-size: 0.75rem;
   font-weight: 600;
+  white-space: nowrap;
 }
 .badge.pending { background: rgba(178, 94, 0, 0.12); color: var(--warning); }
 .badge.approved { background: rgba(52, 199, 89, 0.16); color: #248a3d; }
@@ -179,6 +238,7 @@ tbody tr:hover { background: rgba(0, 0, 0, 0.02); }
   border-radius: 999px;
   font-size: 0.78rem;
   font-weight: 500;
+  white-space: nowrap;
   background: var(--bg-2);
   border: 1px solid var(--border);
   color: var(--text);
@@ -199,6 +259,31 @@ tbody tr:hover { background: rgba(0, 0, 0, 0.02); }
 .spacer { flex: 1; }
 .grid { display: grid; gap: 1rem; }
 
+/* ---------- Loading spinner ---------- */
+.spin-wrap {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.55rem;
+  padding: 1.8rem 0;
+  color: var(--muted);
+  font-size: 0.85rem;
+  /* Fade in slightly late so quick loads never flash a spinner. */
+  animation: spin-appear 0.35s var(--ease-out) 0.15s both;
+}
+.spinner {
+  display: inline-block;
+  width: 20px;
+  height: 20px;
+  flex: none;
+  border-radius: 50%;
+  border: 2px solid rgba(0, 0, 0, 0.08);
+  border-top-color: rgba(0, 0, 0, 0.38);
+  animation: spinner-rotate 0.8s linear infinite;
+}
+@keyframes spinner-rotate { to { transform: rotate(360deg); } }
+@keyframes spin-appear { from { opacity: 0; } to { opacity: 1; } }
+
 /* ---------- Toast ---------- */
 .toast-wrap { position: fixed; top: 1rem; right: 1rem; z-index: 1000; display: flex; flex-direction: column; gap: 0.5rem; }
 .toast {
@@ -218,8 +303,8 @@ tbody tr:hover { background: rgba(0, 0, 0, 0.02); }
 .modal-backdrop {
   position: fixed; inset: 0; background: rgba(0, 0, 0, 0.4);
   backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
   display: flex; align-items: center; justify-content: center; z-index: 900; padding: 1rem;
-  animation: backdrop-in 0.2s var(--ease-out) both;
 }
 .modal {
   background: var(--panel-solid);
@@ -230,47 +315,45 @@ tbody tr:hover { background: rgba(0, 0, 0, 0.02); }
   overflow: auto;
   padding: 1.75rem;
   box-shadow: 0 30px 80px rgba(0, 0, 0, 0.25);
-  animation: modal-in 0.26s var(--ease-soft) both;
 }
 
-.modal-fade-enter-active,
+.modal-fade-enter-active {
+  transition: opacity 0.2s var(--ease-out);
+  will-change: opacity;
+}
 .modal-fade-leave-active {
-  transition: opacity 0.18s var(--ease-out);
+  transition: opacity 0.16s var(--ease-out);
+  will-change: opacity;
+  /* Re-blurring the page every frame while fading is the main source of
+     close jank — drop the blur instantly and only fade the dim layer. */
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
 }
 .modal-fade-enter-from,
 .modal-fade-leave-to {
   opacity: 0;
 }
-.modal-fade-enter-active .modal,
-.modal-fade-leave-active .modal {
-  transition: transform 0.22s var(--ease-soft), opacity 0.18s var(--ease-out);
+.modal-fade-enter-active .modal {
+  transition: transform 0.24s var(--ease-soft), opacity 0.2s var(--ease-out);
+  will-change: transform, opacity;
 }
-.modal-fade-enter-from .modal,
-.modal-fade-leave-to .modal {
+.modal-fade-leave-active .modal {
+  transition: transform 0.16s var(--ease-out), opacity 0.16s var(--ease-out);
+  will-change: transform, opacity;
+}
+.modal-fade-enter-from .modal {
   opacity: 0;
   transform: translateY(10px) scale(0.98);
+}
+.modal-fade-leave-to .modal {
+  opacity: 0;
+  transform: translateY(6px) scale(0.99);
 }
 
 @keyframes surface-in {
   from {
     opacity: 0;
     transform: translateY(10px);
-  }
-  to {
-    opacity: 1;
-    transform: none;
-  }
-}
-
-@keyframes backdrop-in {
-  from { opacity: 0; }
-  to { opacity: 1; }
-}
-
-@keyframes modal-in {
-  from {
-    opacity: 0;
-    transform: translateY(12px) scale(0.985);
   }
   to {
     opacity: 1;

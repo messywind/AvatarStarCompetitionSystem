@@ -6,6 +6,7 @@ import { PROFESSIONS, validateRoster } from '../roster'
 import { formatDeadline, toLocalInput } from '../time'
 import RosterEditor from '../components/RosterEditor.vue'
 import Bracket from '../components/Bracket.vue'
+import Spinner from '../components/Spinner.vue'
 
 const STATUS_LABEL = { pending: '审核中', approved: '已通过', rejected: '未通过' }
 const REGISTRATION_LABEL = { team: '战队报名', solo: '个人报名' }
@@ -17,10 +18,12 @@ const loading = ref(false)
 
 // ------- Tournaments -------
 const tournaments = ref([])
+const tourLoading = ref(false)
 const selectedTid = ref(null)
 const selectedTournament = computed(() => tournaments.value.find((t) => t.id === selectedTid.value))
 
 async function loadTournaments() {
+  tourLoading.value = true
   try {
     const { data } = await api.get('/admin/tournaments')
     tournaments.value = data
@@ -29,6 +32,8 @@ async function loadTournaments() {
     }
   } catch (e) {
     toast(e.message || '加载赛事失败', 'error')
+  } finally {
+    tourLoading.value = false
   }
 }
 
@@ -367,20 +372,22 @@ onMounted(async () => {
 
 <template>
   <div class="container">
-    <div class="row">
-      <h1 style="margin: 0">管理端</h1>
-      <span class="spacer"></span>
-      <div class="tabs">
-        <button class="btn sm" :class="{ ghost: tab !== 'tournaments' }" @click="tab = 'tournaments'">赛事管理</button>
-        <button class="btn sm" :class="{ ghost: tab !== 'teams' }" @click="tab = 'teams'">报名管理</button>
-        <button class="btn sm" :class="{ ghost: tab !== 'bracket' }" @click="tab = 'bracket'">对阵图配置</button>
+    <header class="page-head">
+      <div class="page-title">
+        <h1>管理端</h1>
+        <p class="page-sub">管理赛事、审核报名并配置对阵图</p>
       </div>
-    </div>
+      <div class="segmented">
+        <button :class="{ active: tab === 'tournaments' }" @click="tab = 'tournaments'">赛事管理</button>
+        <button :class="{ active: tab === 'teams' }" @click="tab = 'teams'">报名管理</button>
+        <button :class="{ active: tab === 'bracket' }" @click="tab = 'bracket'">对阵图配置</button>
+      </div>
+    </header>
 
     <!-- Tournament scope selector (teams & bracket tabs) -->
     <div v-if="tab !== 'tournaments'" class="row scope-bar">
-      <label class="muted">当前赛事：</label>
-      <select v-model="selectedTid" style="width: 260px">
+      <label class="scope-label">当前赛事</label>
+      <select v-model="selectedTid" class="scope-select">
         <option v-for="t in tournaments" :key="t.id" :value="t.id">{{ t.name }}</option>
       </select>
       <span v-if="selectedTournament" class="badge" :class="selectedTournament.results_public ? 'approved' : 'pending'">
@@ -389,8 +396,10 @@ onMounted(async () => {
       <span v-if="selectedTournament" class="muted small">截止：{{ formatDeadline(selectedTournament.registration_deadline) }}</span>
     </div>
 
+    <Transition name="tab-swap" mode="out-in">
+
     <!-- ===================== TOURNAMENTS ===================== -->
-    <div v-show="tab === 'tournaments'">
+    <div v-if="tab === 'tournaments'" key="tournaments">
       <div class="row toolbar">
         <span class="muted">共 {{ tournaments.length }} 个赛事</span>
         <span class="spacer"></span>
@@ -402,9 +411,10 @@ onMounted(async () => {
             <tr><th>ID</th><th>赛事名称</th><th>报名截止</th><th>状态</th><th>报名数</th><th>操作</th></tr>
           </thead>
           <tbody>
-            <tr v-if="!tournaments.length"><td colspan="6" class="muted">暂无赛事</td></tr>
+            <tr v-if="tourLoading && !tournaments.length"><td colspan="6"><Spinner label="加载中" /></td></tr>
+            <tr v-else-if="!tournaments.length"><td colspan="6" class="table-empty">暂无赛事</td></tr>
             <tr v-for="t in tournaments" :key="t.id">
-              <td>{{ t.id }}</td>
+              <td class="muted">{{ t.id }}</td>
               <td><strong>{{ t.name }}</strong><div v-if="t.description" class="muted tiny">{{ t.description }}</div></td>
               <td>{{ formatDeadline(t.registration_deadline) }}</td>
               <td>
@@ -415,8 +425,8 @@ onMounted(async () => {
               <td>{{ t.team_count }}</td>
               <td>
                 <div class="actions">
-                  <button class="btn ghost sm" @click="openTourEdit(t)">编辑</button>
-                  <button class="btn danger sm" @click="deleteTour(t)">删除</button>
+                  <button class="btn tint sm" @click="openTourEdit(t)">编辑</button>
+                  <button class="btn tint danger sm" @click="deleteTour(t)">删除</button>
                 </div>
               </td>
             </tr>
@@ -426,7 +436,7 @@ onMounted(async () => {
     </div>
 
     <!-- ===================== TEAMS ===================== -->
-    <div v-show="tab === 'teams'">
+    <div v-else-if="tab === 'teams'" key="teams">
       <div class="row toolbar">
         <label class="muted">筛选状态：</label>
         <select v-model="filter" style="width: 160px" @change="loadTeams">
@@ -449,10 +459,10 @@ onMounted(async () => {
             </tr>
           </thead>
           <tbody>
-            <tr v-if="loading"><td colspan="10" class="muted">加载中…</td></tr>
-            <tr v-else-if="!teams.length"><td colspan="10" class="muted">暂无数据</td></tr>
+            <tr v-if="loading"><td colspan="10"><Spinner label="加载中" /></td></tr>
+            <tr v-else-if="!teams.length"><td colspan="10" class="table-empty">暂无数据</td></tr>
             <tr v-for="t in teams" :key="t.id">
-              <td>{{ t.id }}</td>
+              <td class="muted">{{ t.id }}</td>
               <td><span class="chip sm type-chip">{{ REGISTRATION_LABEL[t.registration_type] || '报名' }}</span></td>
               <td><strong>{{ t.name }}</strong></td>
               <td>{{ t.captain }}</td>
@@ -482,10 +492,10 @@ onMounted(async () => {
               </td>
               <td>
                 <div class="actions">
-                  <button v-if="t.status !== 'approved'" class="btn success sm" @click="review(t, 'approved')">通过</button>
-                  <button v-if="t.status !== 'rejected'" class="btn danger sm" @click="review(t, 'rejected')">驳回</button>
-                  <button class="btn ghost sm" @click="openEdit(t)">编辑</button>
-                  <button class="btn danger sm" @click="removeTeam(t)">删除</button>
+                  <button v-if="t.status !== 'approved'" class="btn tint success sm" @click="review(t, 'approved')">通过</button>
+                  <button v-if="t.status !== 'rejected'" class="btn tint danger sm" @click="review(t, 'rejected')">驳回</button>
+                  <button class="btn tint sm" @click="openEdit(t)">编辑</button>
+                  <button class="btn tint danger sm" @click="removeTeam(t)">删除</button>
                 </div>
               </td>
             </tr>
@@ -495,16 +505,16 @@ onMounted(async () => {
     </div>
 
     <!-- ===================== BRACKET ===================== -->
-    <div v-show="tab === 'bracket'">
+    <div v-else key="bracket">
       <div class="panel">
         <div class="row">
           <h2 style="margin: 0">对阵图配置</h2>
           <span class="spacer"></span>
           <button class="btn ghost sm" @click="generateSkeleton">按已通过报名自动生成</button>
           <button class="btn ghost sm" @click="addRound">+ 添加轮次</button>
-          <button class="btn success sm" @click="saveBracket">保存对阵图</button>
+          <button class="btn sm" @click="saveBracket">保存对阵图</button>
         </div>
-        <p class="muted">
+        <p class="muted bracket-hint">
           配置各轮次的对阵与获胜方；获胜方会在浏览端高亮以展示晋级情况。
           仅「已通过」的报名可被选择（当前 {{ approvedTeams.length }} 条）。
         </p>
@@ -516,8 +526,8 @@ onMounted(async () => {
             <div class="row">
               <input v-model="round.name" class="round-name" placeholder="轮次名称" />
               <span class="spacer"></span>
-              <button class="btn ghost sm" @click="addMatch(round)">+ 对局</button>
-              <button class="btn danger sm" @click="removeRound(ri)">删除轮次</button>
+              <button class="btn tint sm" @click="addMatch(round)">+ 对局</button>
+              <button class="btn tint danger sm" @click="removeRound(ri)">删除轮次</button>
             </div>
             <div v-for="(m, mi) in round.matches" :key="mi" class="editor-match">
               <div class="mrow">
@@ -539,7 +549,7 @@ onMounted(async () => {
                   <option v-if="m.team2 != null" :value="m.team2">{{ bracketTeamMap[m.team2] || '#' + m.team2 }}</option>
                 </select>
                 <span class="spacer"></span>
-                <button class="btn danger sm" @click="removeMatch(round, mi)">移除</button>
+                <button class="btn tint danger sm" @click="removeMatch(round, mi)">移除</button>
               </div>
             </div>
           </div>
@@ -552,14 +562,15 @@ onMounted(async () => {
       </div>
     </div>
 
+    </Transition>
+
     <!-- ===================== TOURNAMENT MODAL ===================== -->
     <Transition name="modal-fade">
       <div v-if="tourModal" class="modal-backdrop" @click.self="tourModal = false">
         <div class="modal tour-modal">
-          <div class="row">
-            <h2 style="margin: 0">{{ tourEditingId ? '编辑赛事' : '新增赛事' }}</h2>
-            <span class="spacer"></span>
-            <button class="btn ghost sm" @click="tourModal = false">取消</button>
+          <div class="modal-head">
+            <h2>{{ tourEditingId ? '编辑赛事' : '新增赛事' }}</h2>
+            <button class="icon-close" aria-label="关闭" @click="tourModal = false">✕</button>
           </div>
           <div class="field"><label>赛事名称 *</label><input v-model="tourForm.name" maxlength="128" placeholder="例如：百变兵团第二届选花杯" /></div>
           <div class="field"><label>赛事简介</label><textarea v-model="tourForm.description" maxlength="2000" placeholder="可选"></textarea></div>
@@ -585,7 +596,7 @@ onMounted(async () => {
           <div class="field"><label>殿军奖励</label><textarea v-model="tourForm.poster.reward_fourth" rows="2" placeholder="例如：每人 500 兑换卷"></textarea></div>
           <div class="field"><label>其他奖励</label><textarea v-model="tourForm.poster.reward_other" rows="2" placeholder="例如：更有众多参与奖神秘奖等待抽选"></textarea></div>
 
-          <button class="btn accent" style="width: 100%" @click="saveTour">
+          <button class="btn modal-submit" @click="saveTour">
             {{ tourEditingId ? '保存修改' : '创建赛事' }}
           </button>
         </div>
@@ -596,10 +607,9 @@ onMounted(async () => {
     <Transition name="modal-fade">
       <div v-if="creating" class="modal-backdrop" @click.self="creating = false">
         <div class="modal">
-          <div class="row">
-            <h2 style="margin: 0">新增报名</h2>
-            <span class="spacer"></span>
-            <button class="btn ghost sm" @click="creating = false">取消</button>
+          <div class="modal-head">
+            <h2>新增报名</h2>
+            <button class="icon-close" aria-label="关闭" @click="creating = false">✕</button>
           </div>
           <p class="muted">录入到「{{ selectedTournament?.name }}」；可直接指定初始审核状态。</p>
           <div class="field">
@@ -636,7 +646,7 @@ onMounted(async () => {
             <RosterEditor v-model="createForm.players" />
           </template>
           <div class="field" style="margin-top: 1rem"><label>作战宣言</label><textarea v-model="createForm.declaration" maxlength="2000"></textarea></div>
-          <button class="btn accent" style="width: 100%" :disabled="!canCreate" @click="saveCreate">
+          <button class="btn modal-submit" :disabled="!canCreate" @click="saveCreate">
             新增报名
           </button>
         </div>
@@ -647,11 +657,12 @@ onMounted(async () => {
     <Transition name="modal-fade">
       <div v-if="editing" class="modal-backdrop" @click.self="editing = null">
         <div class="modal">
-          <div class="row">
-            <h2 style="margin: 0">编辑战队 · {{ editing.name }}</h2>
-            <span class="chip sm type-chip">{{ REGISTRATION_LABEL[editForm.registration_type] || '报名' }}</span>
-            <span class="spacer"></span>
-            <button class="btn ghost sm" @click="editing = null">取消</button>
+          <div class="modal-head">
+            <div class="modal-title-group">
+              <h2>编辑战队 · {{ editing.name }}</h2>
+              <span class="chip sm type-chip">{{ REGISTRATION_LABEL[editForm.registration_type] || '报名' }}</span>
+            </div>
+            <button class="icon-close" aria-label="关闭" @click="editing = null">✕</button>
           </div>
           <div class="field">
             <label>报名类型</label>
@@ -677,7 +688,7 @@ onMounted(async () => {
           </template>
           <div class="field"><label>联系方式</label><input v-model="editForm.contact" maxlength="128" /></div>
           <div class="field" style="margin-top: 1rem"><label>作战宣言</label><textarea v-model="editForm.declaration"></textarea></div>
-          <button class="btn accent" style="width: 100%" :disabled="!editIsSolo && editValidation.errors.length > 0" @click="saveEdit">
+          <button class="btn modal-submit" :disabled="!editIsSolo && editValidation.errors.length > 0" @click="saveEdit">
             保存修改
           </button>
         </div>
@@ -687,31 +698,133 @@ onMounted(async () => {
 </template>
 
 <style scoped>
-.tabs { display: flex; gap: 0.5rem; }
-.scope-bar { margin: 1.2rem 0 0.4rem; padding: 0.7rem 0.9rem; background: var(--bg-2); border-radius: var(--radius-sm); }
+/* ---- Page head ---- */
+.page-head {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 1rem;
+  flex-wrap: wrap;
+  margin-bottom: 0.6rem;
+}
+.page-title h1 { margin: 0; }
+.page-sub {
+  margin: 0.3rem 0 0;
+  color: var(--muted);
+  font-size: 0.92rem;
+}
+
+/* ---- Scope bar ---- */
+.scope-bar {
+  margin: 1.4rem 0 0.6rem;
+  padding: 0.8rem 1rem;
+  background: var(--bg-2);
+  border-radius: 14px;
+}
+.scope-label {
+  color: var(--muted);
+  font-size: 0.85rem;
+  font-weight: 500;
+}
+.scope-select { width: 280px; background: #fff; }
+
+/* ---- Toolbars & table bits ---- */
 .toolbar { margin: 1.2rem 0 1rem; }
 .prof-mini { display: flex; gap: 0.3rem; margin-bottom: 0.2rem; }
 .chip.sm { font-size: 0.72rem; padding: 0.1rem 0.4rem; }
 .tiny { font-size: 0.72rem; }
 .small { font-size: 0.8rem; }
 .declaration-cell { max-width: 220px; color: var(--muted); }
-.actions { display: flex; gap: 0.3rem; flex-wrap: wrap; }
+td strong {
+  display: inline-block;
+  max-width: 14em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  vertical-align: bottom;
+}
+.actions { display: flex; gap: 0.35rem; flex-wrap: wrap; min-width: 136px; }
 
+/* ---- Bracket editor ---- */
+.bracket-hint { font-size: 0.88rem; }
 .editor-rounds { display: flex; gap: 1rem; overflow-x: auto; padding: 1rem 0; align-items: flex-start; scroll-snap-type: x proximity; -webkit-overflow-scrolling: touch; }
-.editor-round { min-width: 280px; scroll-snap-align: start; animation: editor-round-in 0.3s var(--ease-soft) both; }
-.round-name { width: 140px; font-weight: 700; }
-.editor-match { border-top: 1px solid var(--border); padding: 0.7rem 0; }
+.editor-round { min-width: 300px; scroll-snap-align: start; animation: editor-round-in 0.3s var(--ease-soft) both; }
+.round-name { width: 140px; font-weight: 600; }
+.editor-match {
+  background: var(--bg-2);
+  border-radius: 12px;
+  padding: 0.7rem;
+  margin-top: 0.7rem;
+}
+.editor-match select { background: #fff; }
 .mrow { display: flex; align-items: center; gap: 0.4rem; margin-bottom: 0.4rem; }
-.vs { color: var(--accent); font-weight: 800; font-size: 0.8rem; }
+.mrow:last-child { margin-bottom: 0; }
+.vs {
+  color: var(--muted);
+  font-weight: 700;
+  font-size: 0.7rem;
+  letter-spacing: 0.04em;
+  flex: 0 0 auto;
+}
 .winner-sel { width: 130px; }
+
+/* ---- Modals ---- */
 .tour-modal { width: min(560px, 100%); }
+.modal-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.8rem;
+  margin-bottom: 1.2rem;
+}
+.modal-head h2 { margin: 0; font-size: 1.35rem; }
+.modal-title-group { display: flex; align-items: center; gap: 0.6rem; flex-wrap: wrap; min-width: 0; }
+.icon-close {
+  flex: 0 0 auto;
+  width: 32px;
+  height: 32px;
+  border: none;
+  border-radius: 50%;
+  background: rgba(0, 0, 0, 0.06);
+  color: var(--muted);
+  font-size: 0.85rem;
+  line-height: 1;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.15s var(--ease-out), color 0.15s var(--ease-out), transform 0.15s var(--ease-out);
+}
+.icon-close:hover { background: rgba(0, 0, 0, 0.1); color: var(--text); }
+.icon-close:active { transform: scale(0.94); }
+.icon-close:focus-visible { outline: none; box-shadow: 0 0 0 3px rgba(0, 113, 227, 0.22); }
+.modal-submit { width: 100%; margin-top: 0.4rem; min-height: 46px; font-size: 1rem; }
 .poster-group {
-  margin: 1.4rem 0 0.8rem;
-  padding-top: 1rem;
+  margin: 1.6rem 0 0.8rem;
+  padding-top: 1.1rem;
   border-top: 1px solid var(--border);
-  font-size: 0.98rem;
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--muted);
+  letter-spacing: 0.03em;
 }
 .status-select { width: 200px; }
+
+/* Tab switch transition */
+.tab-swap-enter-active {
+  transition: opacity 0.2s var(--ease-out), transform 0.24s var(--ease-soft);
+}
+.tab-swap-leave-active {
+  transition: opacity 0.13s var(--ease-out), transform 0.13s var(--ease-out);
+}
+.tab-swap-enter-from {
+  opacity: 0;
+  transform: translateY(8px);
+}
+.tab-swap-leave-to {
+  opacity: 0;
+  transform: translateY(-5px);
+}
 
 @keyframes editor-round-in {
   from {
@@ -725,26 +838,23 @@ onMounted(async () => {
 }
 
 @media (max-width: 760px) {
-  .container > .row:first-child {
-    align-items: flex-start;
+  .page-head {
+    align-items: stretch;
+    flex-direction: column;
   }
-  .container > .row:first-child h1 {
-    width: 100%;
-  }
-  .tabs {
+  .segmented {
     width: 100%;
     overflow-x: auto;
-    padding-bottom: 0.1rem;
     scrollbar-width: none;
   }
-  .tabs::-webkit-scrollbar { display: none; }
-  .tabs .btn {
-    flex: 0 0 auto;
+  .segmented::-webkit-scrollbar { display: none; }
+  .segmented button {
+    flex: 1 1 auto;
   }
   .scope-bar {
     align-items: stretch;
   }
-  .scope-bar label,
+  .scope-bar .scope-label,
   .scope-bar select {
     width: 100% !important;
   }
@@ -792,9 +902,6 @@ onMounted(async () => {
 }
 
 @media (max-width: 520px) {
-  .tabs .btn {
-    min-width: 112px;
-  }
   .toolbar .spacer,
   .scope-bar .spacer {
     display: none;
@@ -805,14 +912,18 @@ onMounted(async () => {
   .actions .btn {
     flex: 1 1 72px;
   }
-  .modal h2 {
-    font-size: 1.25rem;
+  .modal-head h2 {
+    font-size: 1.2rem;
   }
 }
 
 @media (prefers-reduced-motion: reduce) {
   .editor-round {
     animation: none;
+  }
+  .tab-swap-enter-active,
+  .tab-swap-leave-active {
+    transition: none;
   }
 }
 </style>

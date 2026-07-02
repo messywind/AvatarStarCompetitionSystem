@@ -7,6 +7,7 @@ import { formatDeadline, countdown } from '../time'
 import { useAuthStore } from '../stores/auth'
 import Bracket from '../components/Bracket.vue'
 import Poster from '../components/Poster.vue'
+import Spinner from '../components/Spinner.vue'
 import { tournamentVisual } from '../tournamentAssets'
 
 const auth = useAuthStore()
@@ -21,6 +22,7 @@ const myTeams = ref([])
 const rounds = ref([])
 const teamMap = ref({})
 const loading = ref(false)
+const booting = ref(true)
 const activeTeam = ref(null)
 const detailTournament = ref(null)
 
@@ -80,8 +82,12 @@ function openTournamentDetail(tournament) {
 
 watch(selectedTid, loadContent)
 onMounted(async () => {
-  await loadTournaments()
-  await loadContent()
+  try {
+    await loadTournaments()
+    await loadContent()
+  } finally {
+    booting.value = false
+  }
 })
 </script>
 
@@ -91,6 +97,7 @@ onMounted(async () => {
     <p class="muted">报名截止后公布全部参赛名单与晋级对阵；报名期间仅可查看自己的报名。</p>
 
     <!-- Tournament cards -->
+    <Spinner v-if="booting && !tournaments.length" label="加载赛事中" />
     <div v-if="tournaments.length" class="tournament-grid">
       <article
         v-for="(t, i) in tournaments"
@@ -143,7 +150,7 @@ onMounted(async () => {
 
           <template v-if="auth.isAuthenticated">
             <h2 class="teams-title">我的报名 <span class="muted">（报名期间仅你可见）</span></h2>
-            <p v-if="loading" class="muted">加载中…</p>
+            <Spinner v-if="loading" label="加载中" />
             <p v-else-if="!myTeams.length" class="muted">你还没有在该赛事提交报名。</p>
             <div class="team-grid">
               <div
@@ -183,7 +190,7 @@ onMounted(async () => {
           </section>
 
           <h2 class="teams-title">参赛名单 <span class="muted">（{{ teams.length }} 条）</span></h2>
-          <p v-if="loading" class="muted">加载中…</p>
+          <Spinner v-if="loading" label="加载中" />
           <p v-else-if="!teams.length" class="muted">暂无通过审核的报名记录。</p>
 
           <div class="team-grid">

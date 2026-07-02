@@ -5,6 +5,7 @@ import { toast } from '../toast'
 import { validateRoster, PROFESSIONS } from '../roster'
 import { formatDeadline, countdown } from '../time'
 import RosterEditor from '../components/RosterEditor.vue'
+import Spinner from '../components/Spinner.vue'
 import signupGroupQrcode from '../assets/signup-group-qrcode.jpg'
 
 const STATUS_LABEL = { pending: '审核中', approved: '已通过', rejected: '未通过' }
@@ -32,6 +33,7 @@ const form = reactive({
   soloProfession: '突击',
 })
 const submitting = ref(false)
+const booting = ref(true)
 const myTeams = ref([])
 const tournaments = ref([])
 const selectedTid = ref(null)
@@ -137,7 +139,11 @@ function professionCounts(players) {
 }
 
 onMounted(async () => {
-  await Promise.all([loadTournaments(), loadMine()])
+  try {
+    await Promise.all([loadTournaments(), loadMine()])
+  } finally {
+    booting.value = false
+  }
 })
 </script>
 
@@ -148,7 +154,8 @@ onMounted(async () => {
 
     <div class="signup-grid">
       <div class="panel">
-        <div v-if="!openTournaments.length" class="empty-note">
+        <Spinner v-if="booting" label="加载中" />
+        <div v-else-if="!openTournaments.length" class="empty-note">
           当前没有正在报名的赛事。
         </div>
         <template v-else>
@@ -237,7 +244,8 @@ onMounted(async () => {
       <aside class="side">
         <div class="panel">
           <h3>我的报名</h3>
-          <p v-if="!myTeams.length" class="muted">你还没有提交任何报名。</p>
+          <Spinner v-if="booting && !myTeams.length" label="加载中" />
+          <p v-else-if="!myTeams.length" class="muted">你还没有提交任何报名。</p>
           <div v-for="t in myTeams" :key="t.id" class="my-team">
             <div class="row">
               <strong>{{ t.name }}</strong>
