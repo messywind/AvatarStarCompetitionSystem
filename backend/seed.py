@@ -4,11 +4,33 @@ Run after the API has created the tables at least once:
     python seed.py
 """
 
+import json
 from datetime import datetime, timedelta
 
 from app.auth import hash_password
 from app.database import Base, SessionLocal, engine, ensure_database_exists
 from app.models import Player, Team, Tournament, User
+
+DEMO_POSTER = {
+    "format": "5v5",
+    "profession_limit": "各职业不得超过两名\n若没有生化，可换成一个非突击职业",
+    "mode_limit": "预选赛模式为 占点 夺旗 团战 纯随机",
+    "other_limit": "其余以赛事官方为准",
+    "reward_champion": "三把 ROG 夜魔键盘 价值 5000 元（队伍自行分配）",
+    "reward_runner_up": "三把龙鳞 2 鼠标 价值 3000 元",
+    "reward_third": "每人 1500 兑换卷",
+    "reward_fourth": "每人 500 兑换卷",
+    "reward_other": "更有众多参与奖神秘奖等待抽选",
+    "announcement": (
+        "本活动绝对**公平免费**\n"
+        "面向**全服玩家**，欢迎大家踊跃报名\n"
+        "设计奖励金额不小，为保证公平比赛，每位参赛选手请**私自录屏**（N卡录制/其他软件/手机录屏），有异议者请移交裁判席，有**专业鉴挂团队**介入\n"
+        "比赛期间**直播间不停给参赛选手抽奖**，所以希望大家都参与进来\n"
+        "**单人**也可以报名\n"
+        "满**16支队伍**开赛"
+    ),
+    "announcement_footer": "快来组队参赛，赢取丰厚奖励！",
+}
 
 DEMO_TEAMS = [
     {
@@ -64,6 +86,10 @@ def run():
             db.add(tournament)
             db.commit()
             db.refresh(tournament)
+
+        if not tournament.poster_json:
+            tournament.poster_json = json.dumps(DEMO_POSTER, ensure_ascii=False)
+            db.commit()
 
         for spec in DEMO_TEAMS:
             if db.query(Team).filter(Team.name == spec["name"]).first():

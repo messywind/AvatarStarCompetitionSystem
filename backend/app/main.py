@@ -34,6 +34,9 @@ def bootstrap_admin() -> None:
 
 def run_migrations() -> None:
     """Lightweight schema migration for pre-existing databases (no Alembic)."""
+    # 仅针对存量 MySQL 库；SQLite 等本地开发库由 create_all 直接建全表
+    if not engine.dialect.name.startswith("mysql"):
+        return
     with engine.begin() as conn:
         col = conn.execute(
             text(

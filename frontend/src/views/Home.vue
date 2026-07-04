@@ -94,7 +94,7 @@ const auth = useAuthStore()
         <h2>组队规则</h2>
         <ul>
           <li>每支战队 <strong>正式队员严格为 5 人</strong>，替补人数不限。</li>
-          <li>四大职业 <strong>每种至少 1 人、至多 2 人</strong>，即 2+1+1+1 的组合。</li>
+          <li>四大职业 <strong>每种至少 1 人、至多 2 人</strong>；若没有生化，可换成一个非突击职业（护卫 / 重装）。</li>
           <li>报名提交后需经 <strong>管理员审核</strong>，通过后方可出现在赛事浏览页。</li>
         </ul>
       </div>

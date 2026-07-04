@@ -47,6 +47,9 @@ class PosterConfig(BaseModel):
     reward_third: str = Field(default="", max_length=2000)      # 季军奖励
     reward_fourth: str = Field(default="", max_length=2000)     # 殿军奖励
     reward_other: str = Field(default="", max_length=2000)      # 其他奖励
+    # 参赛公告（每行一条，支持 **文字** 高亮）
+    announcement: str = Field(default="", max_length=4000)
+    announcement_footer: str = Field(default="", max_length=200)  # 公告底部标语
 
 
 def poster_from_json(raw: str | None) -> "PosterConfig":
@@ -94,6 +97,41 @@ class Token(BaseModel):
     access_token: str
     token_type: str = "bearer"
     user: UserOut
+
+
+# ---------- Admin: user management ----------
+
+
+class AdminUserCreate(BaseModel):
+    username: str = Field(min_length=3, max_length=64)
+    password: str = Field(min_length=6, max_length=128)
+    role: str = "admin"
+
+    @field_validator("role")
+    @classmethod
+    def valid_role(cls, v: str) -> str:
+        if v not in ("admin", "user"):
+            raise ValueError("角色不合法")
+        return v
+
+
+class AdminUserRoleUpdate(BaseModel):
+    role: str
+
+    @field_validator("role")
+    @classmethod
+    def valid_role(cls, v: str) -> str:
+        if v not in ("admin", "user"):
+            raise ValueError("角色不合法")
+        return v
+
+
+class AdminUserOut(BaseModel):
+    id: int
+    username: str
+    role: str
+    created_at: datetime
+    team_count: int = 0
 
 
 # ---------- Players / Teams ----------
@@ -168,7 +206,9 @@ class TeamCreate(BaseModel):
         counts = Counter(p.profession for p in formal)
         for prof in PROFESSIONS:
             c = counts.get(prof, 0)
-            if c == 0:
+            # 生化可以缺席：缺出的名额换成一个非突击职业（护卫/重装），
+            # 由每职业最多 2 人的上限保证突击不会借此超员
+            if c == 0 and prof != "生化":
                 raise ValueError(f"职业「{prof}」的人数不得为 0")
             if c > 2:
                 raise ValueError(f"职业「{prof}」的人数不得超过 2 个")
@@ -232,7 +272,8 @@ class TeamUpdate(BaseModel):
                 counts = Counter(p.profession for p in formal)
                 for prof in PROFESSIONS:
                     c = counts.get(prof, 0)
-                    if c == 0:
+                    # 生化可以缺席：缺出的名额换成一个非突击职业（护卫/重装）
+                    if c == 0 and prof != "生化":
                         raise ValueError(f"职业「{prof}」的人数不得为 0")
                     if c > 2:
                         raise ValueError(f"职业「{prof}」的人数不得超过 2 个")

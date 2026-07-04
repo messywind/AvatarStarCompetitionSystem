@@ -1,8 +1,10 @@
 import json
 
 from fastapi import APIRouter, Depends, HTTPException
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 
+from ..auth import hash_password
 from ..database import get_db
 from ..deps import require_admin
 from ..models import (
@@ -16,6 +18,9 @@ from ..models import (
 )
 from ..schemas import (
     AdminTeamCreate,
+    AdminUserCreate,
+    AdminUserOut,
+    AdminUserRoleUpdate,
     Bracket,
     TeamOut,
     TeamReview,
@@ -112,12 +117,62 @@ def delete_tournament(tournament_id: int, db: Session = Depends(get_db)):
     db.commit()
 
 
+# ---------- Users ----------
+
+
+def _user_out(u: User, team_count: int) -> AdminUserOut:
+    return AdminUserOut(
+        id=u.id, username=u.username, role=u.role, created_at=u.created_at, team_count=team_count
+    )
+
+
+@router.get("/users", response_model=list[AdminUserOut])
+def list_users(db: Session = Depends(get_db)):
+    users = db.query(User).order_by(User.id).all()
+    counts = dict(db.query(Team.owner_id, func.count(Team.id)).group_by(Team.owner_id).all())
+    return [_user_out(u, counts.get(u.id, 0)) for u in users]
+
+
+@router.post("/users", response_model=AdminUserOut, status_code=201)
+def create_user(payload: AdminUserCreate, db: Session = Depends(get_db)):
+    if db.query(User).filter(User.username == payload.username).first():
+        raise HTTPException(status_code=400, detail="用户名已存在")
+    user = User(
+        username=payload.username,
+        password_hash=hash_password(payload.password),
+        role=payload.role,
+    )
+    db.add(user)
+    db.commit()
+    db.refresh(user)
+    return _user_out(user, 0)
+
+
+@router.patch("/users/{user_id}/role", response_model=AdminUserOut)
+def update_user_role(
+    user_id: int,
+    payload: AdminUserRoleUpdate,
+    db: Session = Depends(get_db),
+    admin: User = Depends(require_admin),
+):
+    user = db.query(User).filter(User.id == user_id).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="账号不存在")
+    if user.id == admin.id and payload.role != "admin":
+        raise HTTPException(status_code=400, detail="不能取消自己的管理员身份")
+    user.role = payload.role
+    db.commit()
+    team_count = db.query(Team).filter(Team.owner_id == user.id).count()
+    return _user_out(user, team_count)
+
+
 # ---------- Teams ----------
 
 
 @router.get("/teams", response_model=list[TeamOut])
 def list_all_teams(
     status: str | None = None,
+    registration_type: str | None = None,
     tournament_id: int | None = None,
     db: Session = Depends(get_db),
 ):
@@ -126,6 +181,8 @@ def list_all_teams(
         q = q.filter(Team.tournament_id == tournament_id)
     if status:
         q = q.filter(Team.status == status)
+    if registration_type:
+        q = q.filter(Team.registration_type == registration_type)
     return q.order_by(Team.created_at.desc()).all()
 
 

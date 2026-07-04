@@ -24,7 +24,9 @@ export function validateRoster(players) {
   }
   for (const prof of PROFESSIONS) {
     const c = counts[prof]
-    if (c === 0) errors.push(`职业「${prof}」的人数不得为 0`)
+    // 生化可以缺席：缺出的名额换成一个非突击职业（护卫/重装），
+    // 由每职业最多 2 人的上限保证突击不会借此超员
+    if (c === 0 && prof !== '生化') errors.push(`职业「${prof}」的人数不得为 0`)
     else if (c > 2) errors.push(`职业「${prof}」的人数不得超过 2 个`)
   }
   return { formalCount: formal.length, counts, errors }

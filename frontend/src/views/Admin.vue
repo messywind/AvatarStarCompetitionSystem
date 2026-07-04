@@ -7,14 +7,46 @@ import { formatDeadline, toLocalInput } from '../time'
 import RosterEditor from '../components/RosterEditor.vue'
 import Bracket from '../components/Bracket.vue'
 import Spinner from '../components/Spinner.vue'
+import { useAuthStore } from '../stores/auth'
 
 const STATUS_LABEL = { pending: '审核中', approved: '已通过', rejected: '未通过' }
 const REGISTRATION_LABEL = { team: '战队报名', solo: '个人报名' }
 
-const tab = ref('tournaments') // tournaments | teams | bracket
+const auth = useAuthStore()
+
+const tab = ref('tournaments') // tournaments | teams | bracket | users
 const teams = ref([])
 const filter = ref('')
+const typeFilter = ref('')
 const loading = ref(false)
+
+// ------- 确认对话框（删除 / 驳回等危险操作） -------
+const confirmState = reactive({
+  open: false,
+  title: '',
+  message: '',
+  confirmText: '确定',
+  showNote: false,
+  note: '',
+  notePlaceholder: '',
+  action: null,
+})
+function openConfirm(opts) {
+  Object.assign(confirmState, {
+    confirmText: '确定',
+    showNote: false,
+    note: '',
+    notePlaceholder: '',
+    action: null,
+    ...opts,
+    open: true,
+  })
+}
+async function doConfirm() {
+  const { action, note } = confirmState
+  confirmState.open = false
+  if (action) await action(note)
+}
 
 // ------- Tournaments -------
 const tournaments = ref([])
@@ -37,24 +69,25 @@ async function loadTournaments() {
   }
 }
 
-const POSTER_KEYS = [
+const RULE_KEYS = [
   'format', 'profession_limit', 'mode_limit', 'item_limit', 'equipment_limit', 'other_limit',
   'reward_champion', 'reward_runner_up', 'reward_third', 'reward_fourth', 'reward_other',
 ]
+const ANNOUNCE_KEYS = ['announcement', 'announcement_footer']
+const POSTER_KEYS = [...RULE_KEYS, ...ANNOUNCE_KEYS]
 function blankPoster() {
   return Object.fromEntries(POSTER_KEYS.map((k) => [k, '']))
 }
 
 const tourModal = ref(false)
 const tourEditingId = ref(null)
-const tourForm = reactive({ name: '', description: '', registration_deadline: '', poster: blankPoster() })
+const tourForm = reactive({ name: '', description: '', registration_deadline: '' })
 
 function openTourCreate() {
   tourEditingId.value = null
   tourForm.name = ''
   tourForm.description = ''
   tourForm.registration_deadline = ''
-  Object.assign(tourForm.poster, blankPoster())
   tourModal.value = true
 }
 function openTourEdit(t) {
@@ -62,7 +95,6 @@ function openTourEdit(t) {
   tourForm.name = t.name
   tourForm.description = t.description || ''
   tourForm.registration_deadline = toLocalInput(t.registration_deadline)
-  Object.assign(tourForm.poster, blankPoster(), t.poster || {})
   tourModal.value = true
 }
 async function saveTour() {
@@ -72,7 +104,6 @@ async function saveTour() {
     name: tourForm.name.trim(),
     description: tourForm.description.trim(),
     registration_deadline: tourForm.registration_deadline,
-    poster: { ...tourForm.poster },
   }
   try {
     if (tourEditingId.value) {
@@ -89,16 +120,62 @@ async function saveTour() {
     toast(e.message || '保存失败', 'error')
   }
 }
-async function deleteTour(t) {
-  if (!confirm(`确定删除赛事「${t.name}」？其下所有报名记录与对阵图都会被删除，且不可撤销。`)) return
+
+// ------- Poster：编辑规则 / 编辑公告 -------
+const rulesModal = ref(false)
+const rulesTour = ref(null)
+const rulesForm = reactive(Object.fromEntries(RULE_KEYS.map((k) => [k, ''])))
+
+const announceModal = ref(false)
+const announceTour = ref(null)
+const announceForm = reactive(Object.fromEntries(ANNOUNCE_KEYS.map((k) => [k, ''])))
+
+function openRulesEdit(t) {
+  rulesTour.value = t
+  RULE_KEYS.forEach((k) => (rulesForm[k] = t.poster?.[k] || ''))
+  rulesModal.value = true
+}
+function openAnnounceEdit(t) {
+  announceTour.value = t
+  ANNOUNCE_KEYS.forEach((k) => (announceForm[k] = t.poster?.[k] || ''))
+  announceModal.value = true
+}
+// 只覆盖本次编辑的字段，保留海报其余内容
+async function savePoster(tour, form, keys, doneMsg) {
+  const poster = { ...blankPoster(), ...(tour.poster || {}) }
+  keys.forEach((k) => (poster[k] = form[k]))
   try {
-    await api.delete(`/admin/tournaments/${t.id}`)
-    toast('赛事已删除', 'info')
-    if (selectedTid.value === t.id) selectedTid.value = null
+    await api.put(`/admin/tournaments/${tour.id}`, { poster })
+    toast(doneMsg, 'success')
     await loadTournaments()
+    return true
   } catch (e) {
-    toast(e.message || '删除失败', 'error')
+    toast(e.message || '保存失败', 'error')
+    return false
   }
+}
+async function saveRules() {
+  if (await savePoster(rulesTour.value, rulesForm, RULE_KEYS, '参赛规则已保存')) rulesModal.value = false
+}
+async function saveAnnounce() {
+  if (await savePoster(announceTour.value, announceForm, ANNOUNCE_KEYS, '比赛公告已保存')) announceModal.value = false
+}
+function deleteTour(t) {
+  openConfirm({
+    title: '删除赛事',
+    message: `你确定要删除赛事「${t.name}」吗？其下所有报名记录与对阵图都会被删除，且不可撤销。`,
+    confirmText: '删除',
+    action: async () => {
+      try {
+        await api.delete(`/admin/tournaments/${t.id}`)
+        toast('赛事已删除', 'info')
+        if (selectedTid.value === t.id) selectedTid.value = null
+        await loadTournaments()
+      } catch (e) {
+        toast(e.message || '删除失败', 'error')
+      }
+    },
+  })
 }
 
 // ------- Teams -------
@@ -111,6 +188,7 @@ async function loadTeams() {
   try {
     const params = { tournament_id: selectedTid.value }
     if (filter.value) params.status = filter.value
+    if (typeFilter.value) params.registration_type = typeFilter.value
     const { data } = await api.get('/admin/teams', { params })
     teams.value = data
   } catch (e) {
@@ -132,11 +210,23 @@ function subCount(players) {
   return players.filter((p) => p.is_substitute).length
 }
 
-async function review(team, status) {
-  let note = team.review_note || ''
+function review(team, status) {
   if (status === 'rejected') {
-    note = prompt('填写驳回原因（可选）：', note) ?? note
+    openConfirm({
+      title: '驳回报名',
+      message: `你确定要驳回「${team.name}」吗？`,
+      confirmText: '驳回',
+      showNote: true,
+      note: team.review_note || '',
+      notePlaceholder: '驳回原因（可选）',
+      action: (note) => submitReview(team, status, note),
+    })
+    return
   }
+  submitReview(team, status, team.review_note || '')
+}
+
+async function submitReview(team, status, note) {
   try {
     await api.patch(`/admin/teams/${team.id}/review`, { status, review_note: note })
     toast(status === 'approved' ? '已通过审核' : status === 'rejected' ? '已驳回' : '已重置为待审核', 'success')
@@ -146,15 +236,21 @@ async function review(team, status) {
   }
 }
 
-async function removeTeam(team) {
-  if (!confirm(`确定删除报名记录「${team.name}」？此操作不可撤销。`)) return
-  try {
-    await api.delete(`/admin/teams/${team.id}`)
-    toast('已删除', 'info')
-    await loadTeams()
-  } catch (e) {
-    toast(e.message || '删除失败', 'error')
-  }
+function removeTeam(team) {
+  openConfirm({
+    title: '删除报名',
+    message: `你确定要删除报名记录「${team.name}」吗？此操作不可撤销。`,
+    confirmText: '删除',
+    action: async () => {
+      try {
+        await api.delete(`/admin/teams/${team.id}`)
+        toast('已删除', 'info')
+        await loadTeams()
+      } catch (e) {
+        toast(e.message || '删除失败', 'error')
+      }
+    },
+  })
 }
 
 // ------- Create team modal -------
@@ -359,9 +455,77 @@ async function saveBracket() {
   }
 }
 
+// ------- Users（账号管理） -------
+const users = ref([])
+const usersLoading = ref(false)
+
+async function loadUsers() {
+  usersLoading.value = true
+  try {
+    const { data } = await api.get('/admin/users')
+    users.value = data
+  } catch (e) {
+    toast(e.message || '加载账号失败', 'error')
+  } finally {
+    usersLoading.value = false
+  }
+}
+
+const userModal = ref(false)
+const userForm = reactive({ username: '', password: '', role: 'admin' })
+
+function openUserCreate() {
+  userForm.username = ''
+  userForm.password = ''
+  userForm.role = 'admin'
+  userModal.value = true
+}
+async function saveUser() {
+  if (userForm.username.trim().length < 3) return toast('用户名至少 3 个字符', 'error')
+  if (userForm.password.length < 6) return toast('密码至少 6 位', 'error')
+  try {
+    await api.post('/admin/users', {
+      username: userForm.username.trim(),
+      password: userForm.password,
+      role: userForm.role,
+    })
+    toast(userForm.role === 'admin' ? '管理员账号已创建' : '账号已创建', 'success')
+    userModal.value = false
+    await loadUsers()
+  } catch (e) {
+    toast(e.message || '创建失败', 'error')
+  }
+}
+
+async function submitRole(u, role) {
+  try {
+    await api.patch(`/admin/users/${u.id}/role`, { role })
+    toast(role === 'admin' ? `已将「${u.username}」设为管理员` : `已取消「${u.username}」的管理员身份`, 'success')
+    await loadUsers()
+  } catch (e) {
+    toast(e.message || '操作失败', 'error')
+  }
+}
+function setRole(u, role) {
+  if (role !== 'admin') {
+    openConfirm({
+      title: '取消管理员',
+      message: `你确定要取消「${u.username}」的管理员身份吗？该账号将变为普通用户。`,
+      confirmText: '取消管理员',
+      action: () => submitRole(u, role),
+    })
+    return
+  }
+  submitRole(u, role)
+}
+
 // React to tournament switch (for teams & bracket tabs).
 watch(selectedTid, async () => {
   await Promise.all([loadTeams(), loadBracket()])
+})
+
+watch(tab, (v) => {
+  if (v === 'users') loadUsers()
 })
 
 onMounted(async () => {
@@ -381,11 +545,12 @@ onMounted(async () => {
         <button :class="{ active: tab === 'tournaments' }" @click="tab = 'tournaments'">赛事管理</button>
         <button :class="{ active: tab === 'teams' }" @click="tab = 'teams'">报名管理</button>
         <button :class="{ active: tab === 'bracket' }" @click="tab = 'bracket'">对阵图配置</button>
+        <button :class="{ active: tab === 'users' }" @click="tab = 'users'">账号管理</button>
       </div>
     </header>
 
     <!-- Tournament scope selector (teams & bracket tabs) -->
-    <div v-if="tab !== 'tournaments'" class="row scope-bar">
+    <div v-if="tab === 'teams' || tab === 'bracket'" class="row scope-bar">
       <label class="scope-label">当前赛事</label>
       <select v-model="selectedTid" class="scope-select">
         <option v-for="t in tournaments" :key="t.id" :value="t.id">{{ t.name }}</option>
@@ -426,6 +591,8 @@ onMounted(async () => {
               <td>
                 <div class="actions">
                   <button class="btn tint sm" @click="openTourEdit(t)">编辑</button>
+                  <button class="btn tint sm" @click="openRulesEdit(t)">编辑规则</button>
+                  <button class="btn tint sm" @click="openAnnounceEdit(t)">编辑公告</button>
                   <button class="btn tint danger sm" @click="deleteTour(t)">删除</button>
                 </div>
               </td>
@@ -439,11 +606,17 @@ onMounted(async () => {
     <div v-else-if="tab === 'teams'" key="teams">
       <div class="row toolbar">
         <label class="muted">筛选状态：</label>
-        <select v-model="filter" style="width: 160px" @change="loadTeams">
+        <select v-model="filter" style="width: 140px" @change="loadTeams">
           <option value="">全部</option>
           <option value="pending">审核中</option>
           <option value="approved">已通过</option>
           <option value="rejected">未通过</option>
+        </select>
+        <label class="muted">类型：</label>
+        <select v-model="typeFilter" style="width: 140px" @change="loadTeams">
+          <option value="">全部</option>
+          <option value="team">战队报名</option>
+          <option value="solo">个人报名</option>
         </select>
         <button class="btn ghost sm" @click="loadTeams">刷新</button>
         <span class="spacer"></span>
@@ -496,6 +669,55 @@ onMounted(async () => {
                   <button v-if="t.status !== 'rejected'" class="btn tint danger sm" @click="review(t, 'rejected')">驳回</button>
                   <button class="btn tint sm" @click="openEdit(t)">编辑</button>
                   <button class="btn tint danger sm" @click="removeTeam(t)">删除</button>
+                </div>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- ===================== USERS ===================== -->
+    <div v-else-if="tab === 'users'" key="users">
+      <div class="row toolbar">
+        <span class="muted">共 {{ users.length }} 个账号</span>
+        <span class="spacer"></span>
+        <button class="btn ghost sm" @click="loadUsers">刷新</button>
+        <button class="btn sm" @click="openUserCreate">+ 新增账号</button>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr><th>ID</th><th>用户名</th><th>角色</th><th>注册时间</th><th>报名数</th><th>操作</th></tr>
+          </thead>
+          <tbody>
+            <tr v-if="usersLoading && !users.length"><td colspan="6"><Spinner label="加载中" /></td></tr>
+            <tr v-else-if="!users.length"><td colspan="6" class="table-empty">暂无账号</td></tr>
+            <tr v-for="u in users" :key="u.id">
+              <td class="muted">{{ u.id }}</td>
+              <td>
+                <strong>{{ u.username }}</strong>
+                <span v-if="u.id === auth.user?.id" class="muted tiny">（当前登录）</span>
+              </td>
+              <td>
+                <span class="role-badge" :class="u.role">{{ u.role === 'admin' ? '管理员' : '普通用户' }}</span>
+              </td>
+              <td class="muted">{{ formatDeadline(u.created_at) }}</td>
+              <td>{{ u.team_count }}</td>
+              <td>
+                <div class="actions">
+                  <button
+                    v-if="u.role !== 'admin'"
+                    class="btn tint sm"
+                    @click="setRole(u, 'admin')"
+                  >设为管理员</button>
+                  <button
+                    v-else
+                    class="btn tint danger sm"
+                    :disabled="u.id === auth.user?.id"
+                    :title="u.id === auth.user?.id ? '不能取消自己的管理员身份' : ''"
+                    @click="setRole(u, 'user')"
+                  >取消管理员</button>
                 </div>
               </td>
             </tr>
@@ -579,26 +801,120 @@ onMounted(async () => {
             <input v-model="tourForm.registration_deadline" type="datetime-local" />
             <p class="muted tiny" style="margin-top:0.35rem">截止后才会向所有人公开参赛名单与对阵图；截止前用户只能看到自己的报名。</p>
           </div>
-
-          <h4 class="poster-group">比赛详情 · 参赛规则</h4>
-          <p class="muted tiny" style="margin:-0.4rem 0 0.7rem">以下内容将自动生成为比赛详情海报，用户在「比赛详情」中查看。每行一条，留空则不显示该项。</p>
-          <div class="field"><label>比赛形式</label><textarea v-model="tourForm.poster.format" rows="1" placeholder="例如：5v5"></textarea></div>
-          <div class="field"><label>职业限制</label><textarea v-model="tourForm.poster.profession_limit" placeholder="每行一条，例如：&#10;各职业不得超过两名（生化限一名）&#10;每个职业至少有一个"></textarea></div>
-          <div class="field"><label>模式限制</label><textarea v-model="tourForm.poster.mode_limit" placeholder="例如：预选赛模式为 占点 夺旗 团战 纯随机"></textarea></div>
-          <div class="field"><label>药物及道具限制</label><textarea v-model="tourForm.poster.item_limit" placeholder="每行一条"></textarea></div>
-          <div class="field"><label>装备限制</label><textarea v-model="tourForm.poster.equipment_limit" placeholder="每行一条"></textarea></div>
-          <div class="field"><label>其他限制</label><textarea v-model="tourForm.poster.other_limit" placeholder="例如：其余以赛事官方为准"></textarea></div>
-
-          <h4 class="poster-group">比赛详情 · 官方奖励</h4>
-          <div class="field"><label>冠军奖励</label><textarea v-model="tourForm.poster.reward_champion" rows="2" placeholder="例如：三把 ROG 夜魔键盘 价值 5000 元（队伍自行分配）"></textarea></div>
-          <div class="field"><label>亚军奖励</label><textarea v-model="tourForm.poster.reward_runner_up" rows="2" placeholder="例如：三把龙鳞 2 鼠标 价值 3000 元"></textarea></div>
-          <div class="field"><label>季军奖励</label><textarea v-model="tourForm.poster.reward_third" rows="2" placeholder="例如：每人 1500 兑换卷"></textarea></div>
-          <div class="field"><label>殿军奖励</label><textarea v-model="tourForm.poster.reward_fourth" rows="2" placeholder="例如：每人 500 兑换卷"></textarea></div>
-          <div class="field"><label>其他奖励</label><textarea v-model="tourForm.poster.reward_other" rows="2" placeholder="例如：更有众多参与奖神秘奖等待抽选"></textarea></div>
+          <p class="muted tiny">参赛规则与比赛公告请在赛事列表中通过「编辑规则」「编辑公告」按钮单独配置。</p>
 
           <button class="btn modal-submit" @click="saveTour">
             {{ tourEditingId ? '保存修改' : '创建赛事' }}
           </button>
+        </div>
+      </div>
+    </Transition>
+
+    <!-- ===================== RULES MODAL ===================== -->
+    <Transition name="modal-fade">
+      <div v-if="rulesModal" class="modal-backdrop" @click.self="rulesModal = false">
+        <div class="modal tour-modal">
+          <div class="modal-head">
+            <h2>编辑规则 · {{ rulesTour?.name }}</h2>
+            <button class="icon-close" aria-label="关闭" @click="rulesModal = false">✕</button>
+          </div>
+          <p class="muted tiny" style="margin:0 0 0.9rem">以下内容将自动生成为比赛详情海报，用户在「比赛详情」中查看。每行一条，留空则不显示该项。</p>
+
+          <h4 class="poster-group">参赛规则</h4>
+          <div class="field"><label>比赛形式</label><textarea v-model="rulesForm.format" rows="1" placeholder="例如：5v5"></textarea></div>
+          <div class="field"><label>职业限制</label><textarea v-model="rulesForm.profession_limit" placeholder="每行一条，例如：&#10;各职业不得超过两名&#10;若没有生化，可换成一个非突击职业"></textarea></div>
+          <div class="field"><label>模式限制</label><textarea v-model="rulesForm.mode_limit" placeholder="例如：预选赛模式为 占点 夺旗 团战 纯随机"></textarea></div>
+          <div class="field"><label>药物及道具限制</label><textarea v-model="rulesForm.item_limit" placeholder="每行一条"></textarea></div>
+          <div class="field"><label>装备限制</label><textarea v-model="rulesForm.equipment_limit" placeholder="每行一条"></textarea></div>
+          <div class="field"><label>其他限制</label><textarea v-model="rulesForm.other_limit" placeholder="例如：其余以赛事官方为准"></textarea></div>
+
+          <h4 class="poster-group">官方奖励</h4>
+          <div class="field"><label>冠军奖励</label><textarea v-model="rulesForm.reward_champion" rows="2" placeholder="例如：三把 ROG 夜魔键盘 价值 5000 元（队伍自行分配）"></textarea></div>
+          <div class="field"><label>亚军奖励</label><textarea v-model="rulesForm.reward_runner_up" rows="2" placeholder="例如：三把龙鳞 2 鼠标 价值 3000 元"></textarea></div>
+          <div class="field"><label>季军奖励</label><textarea v-model="rulesForm.reward_third" rows="2" placeholder="例如：每人 1500 兑换卷"></textarea></div>
+          <div class="field"><label>殿军奖励</label><textarea v-model="rulesForm.reward_fourth" rows="2" placeholder="例如：每人 500 兑换卷"></textarea></div>
+          <div class="field"><label>其他奖励</label><textarea v-model="rulesForm.reward_other" rows="2" placeholder="例如：更有众多参与奖神秘奖等待抽选"></textarea></div>
+
+          <button class="btn modal-submit" @click="saveRules">保存规则</button>
+        </div>
+      </div>
+    </Transition>
+
+    <!-- ===================== ANNOUNCEMENT MODAL ===================== -->
+    <Transition name="modal-fade">
+      <div v-if="announceModal" class="modal-backdrop" @click.self="announceModal = false">
+        <div class="modal tour-modal">
+          <div class="modal-head">
+            <h2>编辑公告 · {{ announceTour?.name }}</h2>
+            <button class="icon-close" aria-label="关闭" @click="announceModal = false">✕</button>
+          </div>
+          <p class="muted tiny" style="margin:0 0 0.9rem">以下内容将自动生成为参赛公告海报，用户在「比赛公告」中查看。</p>
+
+          <div class="field">
+            <label>公告内容</label>
+            <textarea
+              v-model="announceForm.announcement"
+              rows="8"
+              placeholder="每行一条，用 **文字** 高亮重点，例如：&#10;本活动绝对**公平免费**&#10;面向**全服玩家**，欢迎大家踊跃报名&#10;**单人**也可以报名&#10;满**16支队伍**开赛"
+            ></textarea>
+            <p class="muted tiny" style="margin-top:0.35rem">每行生成一条带序号的公告；两个星号包裹的文字会以金色高亮显示。</p>
+          </div>
+          <div class="field">
+            <label>底部标语</label>
+            <input v-model="announceForm.announcement_footer" maxlength="200" placeholder="例如：快来组队参赛，赢取丰厚奖励！" />
+            <p class="muted tiny" style="margin-top:0.35rem">显示在公告底部的金色横幅，留空则不显示。</p>
+          </div>
+
+          <button class="btn modal-submit" @click="saveAnnounce">保存公告</button>
+        </div>
+      </div>
+    </Transition>
+
+    <!-- ===================== CREATE USER MODAL ===================== -->
+    <Transition name="modal-fade">
+      <div v-if="userModal" class="modal-backdrop" @click.self="userModal = false">
+        <div class="modal confirm-modal">
+          <div class="modal-head">
+            <h2>新增账号</h2>
+            <button class="icon-close" aria-label="关闭" @click="userModal = false">✕</button>
+          </div>
+          <div class="field">
+            <label>用户名 *</label>
+            <input v-model="userForm.username" maxlength="64" placeholder="至少 3 个字符" autocomplete="off" />
+          </div>
+          <div class="field">
+            <label>初始密码 *</label>
+            <input v-model="userForm.password" type="password" maxlength="128" placeholder="至少 6 位" autocomplete="new-password" />
+            <p class="muted tiny" style="margin-top:0.35rem">请将初始密码告知对方，登录后可在「账号设置」中自行修改。</p>
+          </div>
+          <div class="field">
+            <label>角色</label>
+            <select v-model="userForm.role">
+              <option value="admin">管理员</option>
+              <option value="user">普通用户</option>
+            </select>
+          </div>
+          <button class="btn modal-submit" @click="saveUser">创建账号</button>
+        </div>
+      </div>
+    </Transition>
+
+    <!-- ===================== CONFIRM DIALOG ===================== -->
+    <Transition name="modal-fade">
+      <div v-if="confirmState.open" class="modal-backdrop" @click.self="confirmState.open = false">
+        <div class="modal confirm-modal">
+          <div class="modal-head">
+            <h2>{{ confirmState.title }}</h2>
+            <button class="icon-close" aria-label="关闭" @click="confirmState.open = false">✕</button>
+          </div>
+          <p class="confirm-message">{{ confirmState.message }}</p>
+          <div v-if="confirmState.showNote" class="field">
+            <textarea v-model="confirmState.note" rows="2" :placeholder="confirmState.notePlaceholder"></textarea>
+          </div>
+          <div class="confirm-actions">
+            <button class="btn ghost" @click="confirmState.open = false">取消</button>
+            <button class="btn danger" @click="doConfirm">{{ confirmState.confirmText }}</button>
+          </div>
         </div>
       </div>
     </Transition>
@@ -770,6 +1086,30 @@ td strong {
 
 /* ---- Modals ---- */
 .tour-modal { width: min(560px, 100%); }
+
+.confirm-modal { width: min(420px, 100%); }
+
+.role-badge {
+  display: inline-block;
+  padding: 2px 10px;
+  border-radius: 999px;
+  font-size: 0.78rem;
+  font-weight: 700;
+  background: rgba(0, 0, 0, 0.06);
+  color: var(--muted);
+}
+.role-badge.admin {
+  background: rgba(0, 113, 227, 0.12);
+  color: var(--primary);
+}
+.confirm-message { margin: 0 0 1rem; line-height: 1.7; color: var(--text); }
+.confirm-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.6rem;
+  margin-top: 1.1rem;
+}
+.confirm-actions .btn { min-width: 88px; }
 .modal-head {
   display: flex;
   align-items: center;

@@ -5,7 +5,9 @@ from .config import settings
 
 
 def ensure_database_exists() -> None:
-    """Create the target database if it does not exist yet."""
+    """Create the target database if it does not exist yet (MySQL only)."""
+    if not settings.database_url.startswith("mysql"):
+        return
     server_engine = create_engine(settings.server_url, pool_pre_ping=True)
     with server_engine.connect() as conn:
         conn.execute(
@@ -18,7 +20,13 @@ def ensure_database_exists() -> None:
     server_engine.dispose()
 
 
-engine = create_engine(settings.database_url, pool_pre_ping=True, pool_recycle=280)
+_is_sqlite = settings.database_url.startswith("sqlite")
+engine = create_engine(
+    settings.database_url,
+    pool_pre_ping=True,
+    pool_recycle=280,
+    connect_args={"check_same_thread": False} if _is_sqlite else {},
+)
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
 

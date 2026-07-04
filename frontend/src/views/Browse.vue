@@ -7,6 +7,7 @@ import { formatDeadline, countdown } from '../time'
 import { useAuthStore } from '../stores/auth'
 import Bracket from '../components/Bracket.vue'
 import Poster from '../components/Poster.vue'
+import Announcement from '../components/Announcement.vue'
 import Spinner from '../components/Spinner.vue'
 import { tournamentVisual } from '../tournamentAssets'
 
@@ -25,6 +26,7 @@ const loading = ref(false)
 const booting = ref(true)
 const activeTeam = ref(null)
 const detailTournament = ref(null)
+const announceTournament = ref(null)
 
 const selected = computed(() => tournaments.value.find((t) => t.id === selectedTid.value))
 const isPublic = computed(() => !!selected.value?.results_public)
@@ -80,6 +82,10 @@ function openTournamentDetail(tournament) {
   detailTournament.value = tournament
 }
 
+function openTournamentAnnounce(tournament) {
+  announceTournament.value = tournament
+}
+
 watch(selectedTid, loadContent)
 onMounted(async () => {
   try {
@@ -131,7 +137,10 @@ onMounted(async () => {
           </span>
         </div>
 
-        <button class="btn accent detail-btn" @click.stop="openTournamentDetail(t)">比赛详情</button>
+        <div class="card-actions">
+          <button class="btn ghost announce-btn" @click.stop="openTournamentAnnounce(t)">比赛公告</button>
+          <button class="btn accent detail-btn" @click.stop="openTournamentDetail(t)">比赛详情</button>
+        </div>
       </article>
     </div>
 
@@ -275,6 +284,16 @@ onMounted(async () => {
         </div>
       </div>
     </Transition>
+
+    <!-- Tournament announcement modal -->
+    <Transition name="modal-fade">
+      <div v-if="announceTournament" class="modal-backdrop poster-backdrop" @click.self="announceTournament = null">
+        <div class="poster-shell">
+          <button class="poster-close" @click="announceTournament = null">✕</button>
+          <Announcement :tournament="announceTournament" />
+        </div>
+      </div>
+    </Transition>
   </div>
 </template>
 
@@ -344,10 +363,18 @@ onMounted(async () => {
   background: var(--bg-2);
 }
 .tournament-meta strong { color: var(--text); }
-.detail-btn {
-  width: 100%;
+.card-actions {
+  display: flex;
+  gap: 0.6rem;
   margin-top: auto;
-  padding: 0.72rem 1.25rem;
+}
+.card-actions .btn {
+  flex: 1;
+  padding: 0.72rem 1rem;
+}
+.announce-btn {
+  border: 1px solid rgba(0, 113, 227, 0.35);
+  color: var(--primary);
 }
 .tour-state { font-size: 0.68rem; padding: 1px 7px; border-radius: 999px; font-weight: 700; }
 .tour-state.live { background: rgba(255, 149, 0, 0.18); color: #a85e00; }
