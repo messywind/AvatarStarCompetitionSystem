@@ -388,32 +388,66 @@ async function saveEdit() {
 }
 
 // ------- Bracket -------
-const rounds = ref([])
+const stages = ref([])
 const approvedTeams = computed(() => teams.value.filter((t) => t.status === 'approved'))
 const bracketTeamMap = computed(() => Object.fromEntries(approvedTeams.value.map((t) => [t.id, t.name])))
 
+const STAGE_TYPE_LABEL = {
+  elimination: '淘汰赛（树形）',
+  pairs: '并列对决',
+  swiss: '瑞士轮 / 循环积分',
+  double_final: '4强双败决赛',
+}
+
+function emptyMatch() {
+  return { team1: null, team2: null, winner: null, score1: null, score2: null }
+}
+function emptyMatches(n) {
+  return Array.from({ length: n }, emptyMatch)
+}
+
 async function loadBracket() {
   if (!selectedTid.value) {
-    rounds.value = []
+    stages.value = []
     return
   }
   try {
     const { data } = await api.get(`/admin/tournaments/${selectedTid.value}/bracket`)
-    rounds.value = data.rounds || []
+    stages.value = data.stages || []
   } catch (e) {
     toast(e.message || '加载对阵图失败', 'error')
   }
 }
 
-function addRound() {
-  const defaults = ['16 强', '8 强', '四强', '决赛', '冠军']
-  rounds.value.push({ name: defaults[rounds.value.length] || `第 ${rounds.value.length + 1} 轮`, matches: [{ team1: null, team2: null, winner: null }] })
+function addStage() {
+  stages.value.push({
+    name: `阶段 ${stages.value.length + 1}`,
+    type: 'pairs',
+    note: '',
+    advance: null,
+    rounds: [{ name: '第 1 轮', note: '', matches: [emptyMatch()] }],
+  })
 }
-function removeRound(ri) {
-  rounds.value.splice(ri, 1)
+function removeStage(si) {
+  stages.value.splice(si, 1)
+}
+function moveStage(si, dir) {
+  const target = si + dir
+  if (target < 0 || target >= stages.value.length) return
+  const [s] = stages.value.splice(si, 1)
+  stages.value.splice(target, 0, s)
+}
+function onStageTypeChange(stage) {
+  if (stage.type === 'swiss' && stage.advance == null) stage.advance = 4
+}
+function addRound(stage) {
+  stage.rounds.push({ name: `第 ${stage.rounds.length + 1} 轮`, note: '', matches: [emptyMatch()] })
+}
+function removeRound(stage, ri) {
+  stage.rounds.splice(ri, 1)
 }
 function addMatch(round) {
-  round.matches.push({ team1: null, team2: null, winner: null })
+  round.matches.push(emptyMatch())
 }
 function removeMatch(round, mi) {
   round.matches.splice(mi, 1)
@@ -433,22 +467,101 @@ function generateSkeleton() {
     const matches = []
     for (let i = 0; i < count / 2; i++) {
       if (first) {
-        matches.push({ team1: seeds[i * 2] ?? null, team2: seeds[i * 2 + 1] ?? null, winner: null })
+        matches.push({ ...emptyMatch(), team1: seeds[i * 2] ?? null, team2: seeds[i * 2 + 1] ?? null })
       } else {
-        matches.push({ team1: null, team2: null, winner: null })
+        matches.push(emptyMatch())
       }
     }
-    newRounds.push({ name: stageNames[count] || `${count} 强`, matches })
+    newRounds.push({ name: stageNames[count] || `${count} 强`, note: '', matches })
     first = false
     count /= 2
   }
-  rounds.value = newRounds
+  stages.value = [{ name: '淘汰赛', type: 'elimination', note: '', advance: null, rounds: newRounds }]
   toast(`已生成 ${size} 强对阵骨架`, 'success')
+}
+
+// 选花杯赛制：小组赛 12进6 → 复活赛 → 6强瑞士轮 → 4强双败决赛。
+function generateXuanhuaTemplate() {
+  const seeds = approvedTeams.value.map((t) => t.id)
+  const pick = (i) => seeds[i] ?? null
+  const groupMatches = Array.from({ length: 6 }, (_, i) => ({
+    ...emptyMatch(),
+    team1: pick(i * 2),
+    team2: pick(i * 2 + 1),
+  }))
+  const swissPairs = ['A-F、B-E、C-D', 'A-E、F-D、B-C', 'A-D、E-C、F-B', 'A-C、D-B、E-F', 'A-B、C-F、D-E']
+  stages.value = [
+    {
+      name: '小组赛 12进6',
+      type: 'pairs',
+      note: 'BO3｜模式顺序：团战 → 站点 → 夺旗｜地图随机，红蓝边抽签决定先选，每场 BO1 后交换',
+      advance: null,
+      rounds: [{ name: '小组赛', note: '胜者进入胜者组，败者跌入败者组', matches: groupMatches }],
+    },
+    {
+      name: '复活赛',
+      type: 'pairs',
+      note: 'BO3｜模式顺序：团战 → 站点 → 夺旗｜地图随机',
+      advance: null,
+      rounds: [
+        { name: '败者组 6进3', note: '胜者进入复活席', matches: emptyMatches(3) },
+        { name: '胜者组 6进3', note: '胜者直接晋级 6 强', matches: emptyMatches(3) },
+        { name: '复活对决', note: '胜者组败者 vs 复活席，决出剩余 3 个 6 强席位', matches: emptyMatches(3) },
+      ],
+    },
+    {
+      name: '6强瑞士轮排位赛',
+      type: 'swiss',
+      note: '歼灭 BO1｜系统随机分配编号 A-F｜每胜一场积 1 分，前 4 名晋级 4 强',
+      advance: 4,
+      rounds: swissPairs.map((pairing, i) => ({ name: `轮 ${i + 1}`, note: pairing, matches: emptyMatches(3) })),
+    },
+    {
+      name: '4强淘汰赛',
+      type: 'double_final',
+      note: '继承瑞士轮排名：1v2、3v4｜BO3 歼灭三图都打，红蓝边抽签决定先选，每场 BO1 后交换',
+      advance: null,
+      rounds: [
+        {
+          name: '半决赛',
+          note: '上：1v2，胜者进胜者组决赛、败者进败者组决赛；下：3v4，胜者进败者组决赛、败者锁定殿军',
+          matches: emptyMatches(2),
+        },
+        { name: '败者组决赛', note: 'BO5 歼灭｜胜者进胜者组决赛，败者锁定季军', matches: emptyMatches(1) },
+        { name: '胜者组决赛', note: '胜者夺得冠军，败者锁定亚军', matches: emptyMatches(1) },
+      ],
+    },
+  ]
+  toast('已生成选花杯赛制模板', 'success')
+}
+
+// Normalize editor state (empty inputs become null) before persisting.
+function cleanBracket() {
+  const num = (v) => (v === '' || v == null ? null : Number(v))
+  return {
+    stages: stages.value.map((s) => ({
+      name: s.name,
+      type: s.type,
+      note: s.note || '',
+      advance: num(s.advance),
+      rounds: s.rounds.map((r) => ({
+        name: r.name,
+        note: r.note || '',
+        matches: r.matches.map((m) => ({
+          team1: m.team1 ?? null,
+          team2: m.team2 ?? null,
+          winner: m.winner ?? null,
+          score1: num(m.score1),
+          score2: num(m.score2),
+        })),
+      })),
+    })),
+  }
 }
 
 async function saveBracket() {
   try {
-    await api.put(`/admin/tournaments/${selectedTid.value}/bracket`, { rounds: rounds.value })
+    await api.put(`/admin/tournaments/${selectedTid.value}/bracket`, cleanBracket())
     toast('对阵图已保存', 'success')
   } catch (e) {
     toast(e.message || '保存失败', 'error')
@@ -732,46 +845,69 @@ onMounted(async () => {
         <div class="row">
           <h2 style="margin: 0">对阵图配置</h2>
           <span class="spacer"></span>
+          <button class="btn ghost sm" @click="generateXuanhuaTemplate">生成选花杯模板</button>
           <button class="btn ghost sm" @click="generateSkeleton">按已通过报名自动生成</button>
-          <button class="btn ghost sm" @click="addRound">+ 添加轮次</button>
+          <button class="btn ghost sm" @click="addStage">+ 添加阶段</button>
           <button class="btn sm" @click="saveBracket">保存对阵图</button>
         </div>
         <p class="muted bracket-hint">
-          配置各轮次的对阵与获胜方；获胜方会在浏览端高亮以展示晋级情况。
+          对阵图按「阶段」组织：淘汰赛（树形连接线）、并列对决（无连接线）、瑞士轮（自动积分榜）、4强双败决赛（自动名次）。
           仅「已通过」的报名可被选择（当前 {{ approvedTeams.length }} 条）。
         </p>
 
-        <div v-if="!rounds.length" class="muted">尚未添加任何轮次。</div>
+        <div v-if="!stages.length" class="muted">尚未添加任何阶段。</div>
 
-        <div class="editor-rounds">
-          <div v-for="(round, ri) in rounds" :key="ri" class="editor-round card">
-            <div class="row">
-              <input v-model="round.name" class="round-name" placeholder="轮次名称" />
-              <span class="spacer"></span>
-              <button class="btn tint sm" @click="addMatch(round)">+ 对局</button>
-              <button class="btn tint danger sm" @click="removeRound(ri)">删除轮次</button>
-            </div>
-            <div v-for="(m, mi) in round.matches" :key="mi" class="editor-match">
-              <div class="mrow">
-                <select v-model="m.team1">
-                  <option :value="null">— 待定 —</option>
-                  <option v-for="t in approvedTeams" :key="t.id" :value="t.id">{{ t.name }}</option>
-                </select>
-                <span class="vs">VS</span>
-                <select v-model="m.team2">
-                  <option :value="null">— 待定 —</option>
-                  <option v-for="t in approvedTeams" :key="t.id" :value="t.id">{{ t.name }}</option>
-                </select>
-              </div>
-              <div class="mrow winner-row">
-                <label class="muted tiny">胜者</label>
-                <select v-model="m.winner" class="winner-sel">
-                  <option :value="null">未定</option>
-                  <option v-if="m.team1 != null" :value="m.team1">{{ bracketTeamMap[m.team1] || '#' + m.team1 }}</option>
-                  <option v-if="m.team2 != null" :value="m.team2">{{ bracketTeamMap[m.team2] || '#' + m.team2 }}</option>
-                </select>
+        <div v-for="(stage, si) in stages" :key="si" class="editor-stage card">
+          <div class="row stage-row">
+            <input v-model="stage.name" class="stage-name-input" placeholder="阶段名称" />
+            <select v-model="stage.type" class="stage-type-sel" @change="onStageTypeChange(stage)">
+              <option v-for="(lbl, val) in STAGE_TYPE_LABEL" :key="val" :value="val">{{ lbl }}</option>
+            </select>
+            <label v-if="stage.type === 'swiss'" class="muted tiny adv-label">
+              晋级名额
+              <input v-model.number="stage.advance" type="number" min="1" class="adv-input" />
+            </label>
+            <span class="spacer"></span>
+            <button class="btn tint sm" :disabled="si === 0" @click="moveStage(si, -1)">↑</button>
+            <button class="btn tint sm" :disabled="si === stages.length - 1" @click="moveStage(si, 1)">↓</button>
+            <button class="btn tint sm" @click="addRound(stage)">+ 轮次</button>
+            <button class="btn tint danger sm" @click="removeStage(si)">删除阶段</button>
+          </div>
+          <input v-model="stage.note" class="note-input" placeholder="阶段说明（可选，展示在阶段标题下，可写 BO 数、模式顺序等规则）" />
+
+          <div class="editor-rounds">
+            <div v-for="(round, ri) in stage.rounds" :key="ri" class="editor-round card">
+              <div class="row">
+                <input v-model="round.name" class="round-name" placeholder="轮次名称" />
                 <span class="spacer"></span>
-                <button class="btn tint danger sm" @click="removeMatch(round, mi)">移除</button>
+                <button class="btn tint sm" @click="addMatch(round)">+ 对局</button>
+                <button class="btn tint danger sm" @click="removeRound(stage, ri)">删除轮次</button>
+              </div>
+              <input v-model="round.note" class="note-input" placeholder="轮次说明（可选）" />
+              <div v-for="(m, mi) in round.matches" :key="mi" class="editor-match">
+                <div class="mrow">
+                  <select v-model="m.team1">
+                    <option :value="null">— 待定 —</option>
+                    <option v-for="t in approvedTeams" :key="t.id" :value="t.id">{{ t.name }}</option>
+                  </select>
+                  <input v-model.number="m.score1" type="number" min="0" class="score-input" placeholder="比分" />
+                  <span class="vs">VS</span>
+                  <input v-model.number="m.score2" type="number" min="0" class="score-input" placeholder="比分" />
+                  <select v-model="m.team2">
+                    <option :value="null">— 待定 —</option>
+                    <option v-for="t in approvedTeams" :key="t.id" :value="t.id">{{ t.name }}</option>
+                  </select>
+                </div>
+                <div class="mrow winner-row">
+                  <label class="muted tiny">胜者</label>
+                  <select v-model="m.winner" class="winner-sel">
+                    <option :value="null">未定</option>
+                    <option v-if="m.team1 != null" :value="m.team1">{{ bracketTeamMap[m.team1] || '#' + m.team1 }}</option>
+                    <option v-if="m.team2 != null" :value="m.team2">{{ bracketTeamMap[m.team2] || '#' + m.team2 }}</option>
+                  </select>
+                  <span class="spacer"></span>
+                  <button class="btn tint danger sm" @click="removeMatch(round, mi)">移除</button>
+                </div>
               </div>
             </div>
           </div>
@@ -780,7 +916,7 @@ onMounted(async () => {
 
       <div class="panel" style="margin-top: 1.5rem">
         <h3>预览</h3>
-        <Bracket :rounds="rounds" :team-map="bracketTeamMap" />
+        <Bracket :stages="stages" :team-map="bracketTeamMap" />
       </div>
     </div>
 
@@ -1063,9 +1199,19 @@ td strong {
 
 /* ---- Bracket editor ---- */
 .bracket-hint { font-size: 0.88rem; }
+.editor-stage { margin-top: 1rem; animation: editor-round-in 0.3s var(--ease-soft) both; }
+.editor-stage + .editor-stage { margin-top: 1.2rem; }
+.stage-row { flex-wrap: wrap; }
+.stage-name-input { width: 200px; font-weight: 700; }
+.stage-type-sel { width: 170px; background: #fff; }
+.adv-label { display: inline-flex; align-items: center; gap: 0.35rem; white-space: nowrap; }
+.adv-input { width: 64px; background: #fff; }
+.note-input { width: 100%; margin-top: 0.6rem; font-size: 0.82rem; background: #fff; }
 .editor-rounds { display: flex; gap: 1rem; overflow-x: auto; padding: 1rem 0; align-items: flex-start; scroll-snap-type: x proximity; -webkit-overflow-scrolling: touch; }
 .editor-round { min-width: 300px; scroll-snap-align: start; animation: editor-round-in 0.3s var(--ease-soft) both; }
+.editor-round .note-input { margin-top: 0.5rem; }
 .round-name { width: 140px; font-weight: 600; }
+.score-input { width: 58px; text-align: center; background: #fff; }
 .editor-match {
   background: var(--bg-2);
   border-radius: 12px;
@@ -1224,7 +1370,9 @@ td strong {
   .editor-round > .row {
     align-items: stretch;
   }
-  .round-name {
+  .round-name,
+  .stage-name-input,
+  .stage-type-sel {
     width: 100%;
   }
   .mrow {
@@ -1236,7 +1384,8 @@ td strong {
     text-align: center;
   }
   .winner-sel,
-  .status-select {
+  .status-select,
+  .score-input {
     width: 100%;
   }
 }
@@ -1258,7 +1407,8 @@ td strong {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .editor-round {
+  .editor-round,
+  .editor-stage {
     animation: none;
   }
   .tab-swap-enter-active,

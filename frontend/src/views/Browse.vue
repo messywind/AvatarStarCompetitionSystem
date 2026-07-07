@@ -20,7 +20,7 @@ const tournaments = ref([])
 const selectedTid = ref(null)
 const teams = ref([])
 const myTeams = ref([])
-const rounds = ref([])
+const stages = ref([])
 const teamMap = ref({})
 const loading = ref(false)
 const booting = ref(true)
@@ -44,7 +44,7 @@ async function loadContent() {
   loading.value = true
   teams.value = []
   myTeams.value = []
-  rounds.value = []
+  stages.value = []
   teamMap.value = {}
   try {
     if (isPublic.value) {
@@ -53,7 +53,7 @@ async function loadContent() {
         api.get(`/public/tournaments/${selectedTid.value}/bracket`),
       ])
       teams.value = teamsRes.data
-      rounds.value = bracketRes.data.bracket.rounds || []
+      stages.value = bracketRes.data.bracket.stages || []
       teamMap.value = bracketRes.data.teams || {}
     } else if (auth.isAuthenticated) {
       // During registration users may only see their own teams.
@@ -195,7 +195,7 @@ onMounted(async () => {
         <template v-else>
           <section class="panel bracket-panel">
             <h2>赛事对阵图</h2>
-            <Bracket :rounds="rounds" :team-map="teamMap" />
+            <Bracket :stages="stages" :team-map="teamMap" />
           </section>
 
           <h2 class="teams-title">参赛名单 <span class="muted">（{{ teams.length }} 条）</span></h2>

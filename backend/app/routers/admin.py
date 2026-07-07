@@ -274,7 +274,7 @@ def delete_team(team_id: int, db: Session = Depends(get_db)):
 def get_bracket(tournament_id: int, db: Session = Depends(get_db)):
     t = _get_tournament_or_404(db, tournament_id)
     if not t.bracket_json:
-        return Bracket(rounds=[])
+        return Bracket()
     return Bracket(**json.loads(t.bracket_json))
 
 

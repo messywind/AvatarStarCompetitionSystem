@@ -72,7 +72,7 @@ def tournament_bracket(tournament_id: int, db: Session = Depends(get_db)):
     t = _get_tournament_or_404(db, tournament_id)
     if not results_public(t):
         raise HTTPException(status_code=403, detail="报名截止后才可查看对阵图")
-    bracket = Bracket(**json.loads(t.bracket_json)) if t.bracket_json else Bracket(rounds=[])
+    bracket = Bracket(**json.loads(t.bracket_json)) if t.bracket_json else Bracket()
     teams = (
         db.query(Team)
         .filter(Team.tournament_id == t.id, Team.status == STATUS_APPROVED)

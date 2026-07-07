@@ -329,17 +329,52 @@ class TeamPublicOut(BaseModel):
 
 # ---------- Bracket ----------
 
+# Stage layouts understood by the frontend renderer:
+#   elimination  — classic single-elimination tree with connectors
+#   pairs        — parallel BO duels, no cross-round connectors
+#   swiss        — round-robin/swiss rounds with an auto-computed standings table
+#   double_final — 4-team double-elimination final (semis, loser final, winner final)
+STAGE_TYPES = {"elimination", "pairs", "swiss", "double_final"}
+
 
 class BracketMatch(BaseModel):
     team1: Optional[int] = None  # team id or null
     team2: Optional[int] = None
     winner: Optional[int] = None
+    score1: Optional[int] = None  # e.g. 2 in a 2:1 BO3
+    score2: Optional[int] = None
 
 
 class BracketRound(BaseModel):
     name: str
+    note: str = ""
     matches: list[BracketMatch]
 
 
-class Bracket(BaseModel):
+class BracketStage(BaseModel):
+    name: str
+    type: str = "elimination"
+    note: str = ""
+    # Swiss stages: how many top-ranked teams advance (highlighted in the standings).
+    advance: Optional[int] = None
     rounds: list[BracketRound] = []
+
+    @field_validator("type")
+    @classmethod
+    def _known_type(cls, v: str) -> str:
+        if v not in STAGE_TYPES:
+            raise ValueError(f"未知的阶段类型: {v}")
+        return v
+
+
+class Bracket(BaseModel):
+    stages: list[BracketStage] = []
+
+    @model_validator(mode="before")
+    @classmethod
+    def _upgrade_legacy(cls, data):
+        """Accept the pre-stage format {"rounds": [...]} and wrap it in one stage."""
+        if isinstance(data, dict) and "stages" not in data:
+            rounds = data.get("rounds") or []
+            data = {"stages": [{"name": "淘汰赛", "type": "elimination", "rounds": rounds}]} if rounds else {"stages": []}
+        return data
