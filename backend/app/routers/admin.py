@@ -69,6 +69,7 @@ def _tournament_out(db: Session, t: Tournament) -> TournamentOut:
         team_count=count,
         poster=poster_from_json(t.poster_json),
         rules=rules_from_json(t.rules_json),
+        avatar=t.avatar or "",
     )
 
 
@@ -89,6 +90,7 @@ def create_tournament(payload: TournamentCreate, db: Session = Depends(get_db)):
         registration_deadline=payload.registration_deadline,
         poster_json=payload.poster.model_dump_json() if payload.poster else "",
         rules_json=payload.rules.model_dump_json() if payload.rules else "",
+        avatar=payload.avatar,
     )
     db.add(t)
     db.commit()
@@ -109,6 +111,8 @@ def update_tournament(tournament_id: int, payload: TournamentUpdate, db: Session
         t.poster_json = payload.poster.model_dump_json()
     if payload.rules is not None:
         t.rules_json = payload.rules.model_dump_json()
+    if payload.avatar is not None:
+        t.avatar = payload.avatar
     db.commit()
     db.refresh(t)
     return _tournament_out(db, t)

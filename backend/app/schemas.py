@@ -116,12 +116,32 @@ def registration_rule_error(
     return None
 
 
+# 头像以 data URL 存库；前端上传前已压缩，这里再兜底限制大小（约 1.5MB 图片）
+MAX_AVATAR_LENGTH = 2_000_000
+
+
+def _valid_avatar(v: Optional[str]) -> Optional[str]:
+    if not v:
+        return v
+    if not v.startswith("data:image/"):
+        raise ValueError("头像必须是 data:image/ 开头的图片数据")
+    if len(v) > MAX_AVATAR_LENGTH:
+        raise ValueError("头像图片过大，请压缩后再上传")
+    return v
+
+
 class TournamentCreate(BaseModel):
     name: str = Field(min_length=1, max_length=128)
     description: str = Field(default="", max_length=2000)
     registration_deadline: datetime
     poster: Optional[PosterConfig] = None
     rules: Optional[RegistrationRules] = None
+    avatar: str = ""
+
+    @field_validator("avatar")
+    @classmethod
+    def check_avatar(cls, v: str) -> str:
+        return _valid_avatar(v) or ""
 
 
 class TournamentUpdate(BaseModel):
@@ -130,6 +150,13 @@ class TournamentUpdate(BaseModel):
     registration_deadline: Optional[datetime] = None
     poster: Optional[PosterConfig] = None
     rules: Optional[RegistrationRules] = None
+    # None = 不修改；空字符串 = 清除头像（回退默认图）
+    avatar: Optional[str] = None
+
+    @field_validator("avatar")
+    @classmethod
+    def check_avatar(cls, v: Optional[str]) -> Optional[str]:
+        return _valid_avatar(v)
 
 
 class TournamentOut(BaseModel):
@@ -142,6 +169,7 @@ class TournamentOut(BaseModel):
     team_count: int = 0
     poster: PosterConfig = PosterConfig()
     rules: RegistrationRules = RegistrationRules()
+    avatar: str = ""
 
 
 class UserOut(BaseModel):

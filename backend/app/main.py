@@ -119,6 +119,17 @@ def run_migrations() -> None:
         if not rules_col:
             conn.execute(text("ALTER TABLE tournaments ADD COLUMN rules_json TEXT NULL"))
 
+        avatar_col = conn.execute(
+            text(
+                "SELECT COUNT(*) FROM information_schema.COLUMNS "
+                "WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'tournaments' "
+                "AND COLUMN_NAME = 'avatar'"
+            )
+        ).scalar()
+        if not avatar_col:
+            # 头像为 base64 data URL，TEXT 的 64KB 不够用
+            conn.execute(text("ALTER TABLE tournaments ADD COLUMN avatar MEDIUMTEXT NULL"))
+
 
 def bootstrap_default_tournament() -> None:
     """Ensure at least one tournament exists and every team belongs to one.

@@ -97,6 +97,7 @@ const tourForm = reactive({
   registration_deadline: '',
   registration_types: [...REGISTRATION_TYPES],
   professions: [...PROFESSIONS],
+  avatar: '',
 })
 
 function openTourCreate() {
@@ -106,6 +107,7 @@ function openTourCreate() {
   tourForm.registration_deadline = ''
   tourForm.registration_types = [...REGISTRATION_TYPES]
   tourForm.professions = [...PROFESSIONS]
+  tourForm.avatar = ''
   tourModal.value = true
 }
 function openTourEdit(t) {
@@ -115,7 +117,44 @@ function openTourEdit(t) {
   tourForm.registration_deadline = toLocalInput(t.registration_deadline)
   tourForm.registration_types = [...(t.rules?.registration_types || REGISTRATION_TYPES)]
   tourForm.professions = [...(t.rules?.professions || PROFESSIONS)]
+  tourForm.avatar = t.avatar || ''
   tourModal.value = true
+}
+
+// ------- 赛事头像：本地压缩为 512px 内的 data URL 后随表单提交 -------
+const avatarInput = ref(null)
+
+function compressImage(file, maxSize = 512) {
+  return new Promise((resolve, reject) => {
+    const url = URL.createObjectURL(file)
+    const img = new Image()
+    img.onload = () => {
+      URL.revokeObjectURL(url)
+      const scale = Math.min(1, maxSize / Math.max(img.width, img.height))
+      const canvas = document.createElement('canvas')
+      canvas.width = Math.max(1, Math.round(img.width * scale))
+      canvas.height = Math.max(1, Math.round(img.height * scale))
+      canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height)
+      resolve(canvas.toDataURL('image/jpeg', 0.85))
+    }
+    img.onerror = () => {
+      URL.revokeObjectURL(url)
+      reject(new Error('图片读取失败'))
+    }
+    img.src = url
+  })
+}
+
+async function onAvatarChange(e) {
+  const file = e.target.files?.[0]
+  e.target.value = ''
+  if (!file) return
+  if (!file.type.startsWith('image/')) return toast('请选择图片文件', 'error')
+  try {
+    tourForm.avatar = await compressImage(file)
+  } catch (err) {
+    toast(err.message || '图片读取失败', 'error')
+  }
 }
 async function saveTour() {
   if (!tourForm.name.trim()) return toast('请填写赛事名称', 'error')
@@ -130,6 +169,7 @@ async function saveTour() {
       registration_types: REGISTRATION_TYPES.filter((t) => tourForm.registration_types.includes(t)),
       professions: PROFESSIONS.filter((p) => tourForm.professions.includes(p)),
     },
+    avatar: tourForm.avatar,
   }
   try {
     if (tourEditingId.value) {
@@ -963,6 +1003,19 @@ onMounted(async () => {
             <button class="icon-close" aria-label="关闭" @click="tourModal = false">✕</button>
           </div>
           <div class="field"><label>赛事名称 *</label><input v-model="tourForm.name" maxlength="128" placeholder="例如：百变兵团第二届选花杯" /></div>
+          <div class="field">
+            <label>赛事头像</label>
+            <div class="avatar-edit">
+              <img v-if="tourForm.avatar" :src="tourForm.avatar" alt="赛事头像预览" class="avatar-preview" />
+              <div v-else class="avatar-preview avatar-empty">默认</div>
+              <div class="avatar-btns">
+                <button type="button" class="btn tint sm" @click="avatarInput?.click()">上传图片</button>
+                <button v-if="tourForm.avatar" type="button" class="btn tint danger sm" @click="tourForm.avatar = ''">移除</button>
+              </div>
+              <input ref="avatarInput" type="file" accept="image/*" class="avatar-file" @change="onAvatarChange" />
+            </div>
+            <p class="muted tiny" style="margin-top:0.35rem">显示在赛事浏览卡片上，建议正方形图片，上传时会自动压缩；不上传则使用默认头像。</p>
+          </div>
           <div class="field"><label>赛事简介</label><textarea v-model="tourForm.description" maxlength="2000" placeholder="可选"></textarea></div>
           <div class="field">
             <label>报名截止时间 *</label>
@@ -1336,6 +1389,37 @@ td strong {
 .icon-close:active { transform: scale(0.94); }
 .icon-close:focus-visible { outline: none; box-shadow: 0 0 0 3px rgba(0, 113, 227, 0.22); }
 .modal-submit { width: 100%; margin-top: 0.4rem; min-height: 46px; font-size: 1rem; }
+/* ---- Tournament avatar upload ---- */
+.avatar-edit {
+  display: flex;
+  align-items: center;
+  gap: 0.8rem;
+}
+.avatar-preview {
+  width: 64px;
+  height: 64px;
+  border-radius: 16px;
+  object-fit: cover;
+  border: 1px solid var(--border);
+  flex: none;
+}
+.avatar-empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--muted);
+  font-size: 0.72rem;
+  background: var(--bg-2);
+}
+.avatar-btns {
+  display: flex;
+  gap: 0.4rem;
+  flex-wrap: wrap;
+}
+.avatar-file {
+  display: none;
+}
+
 /* ---- Tournament rules checkboxes ---- */
 .check-row {
   display: flex;

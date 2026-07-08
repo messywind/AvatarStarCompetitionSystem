@@ -8,6 +8,7 @@ from sqlalchemy import (
     Text,
     func,
 )
+from sqlalchemy.dialects.mysql import MEDIUMTEXT
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from .database import Base
@@ -50,6 +51,9 @@ class Tournament(Base):
     # Registration restrictions (allowed types & professions), stored as JSON text.
     # Empty means no restriction: both types, all professions.
     rules_json: Mapped[str] = mapped_column(Text, default="")
+    # Card avatar image as a data URL; empty falls back to the frontend default.
+    # MEDIUMTEXT on MySQL: base64 images easily exceed TEXT's 64KB cap.
+    avatar: Mapped[str] = mapped_column(Text().with_variant(MEDIUMTEXT(), "mysql"), default="")
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(
         DateTime, server_default=func.now(), onupdate=func.now()

@@ -39,6 +39,7 @@ def _tournament_out(db: Session, t: Tournament) -> TournamentOut:
         team_count=count,
         poster=poster_from_json(t.poster_json),
         rules=rules_from_json(t.rules_json),
+        avatar=t.avatar or "",
     )
 
 
