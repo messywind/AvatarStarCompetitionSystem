@@ -47,6 +47,9 @@ class Tournament(Base):
     bracket_json: Mapped[str] = mapped_column(Text, default="")
     # Poster content (rules & rewards), stored as JSON text.
     poster_json: Mapped[str] = mapped_column(Text, default="")
+    # Registration restrictions (allowed types & professions), stored as JSON text.
+    # Empty means no restriction: both types, all professions.
+    rules_json: Mapped[str] = mapped_column(Text, default="")
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(
         DateTime, server_default=func.now(), onupdate=func.now()

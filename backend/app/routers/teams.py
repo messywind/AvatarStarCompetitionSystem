@@ -11,7 +11,7 @@ from ..models import (
     REGISTRATION_SOLO,
     registration_open,
 )
-from ..schemas import TeamCreate, TeamOut
+from ..schemas import TeamCreate, TeamOut, registration_rule_error, rules_from_json
 
 router = APIRouter(prefix="/api/teams", tags=["teams"])
 
@@ -31,6 +31,11 @@ def create_team(payload: TeamCreate, db: Session = Depends(get_db), user: User =
         raise HTTPException(status_code=404, detail="赛事不存在")
     if not registration_open(tournament):
         raise HTTPException(status_code=400, detail="该赛事报名已截止")
+    rule_error = registration_rule_error(
+        payload.registration_type, payload.players, rules_from_json(tournament.rules_json)
+    )
+    if rule_error:
+        raise HTTPException(status_code=400, detail=rule_error)
     name, captain = _normalize_team_fields(payload)
     team = Team(
         tournament_id=tournament.id,

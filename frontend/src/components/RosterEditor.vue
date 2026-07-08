@@ -4,6 +4,7 @@ import { PROFESSIONS, MAX_SUBSTITUTES, validateRoster } from '../roster'
 
 const props = defineProps({
   modelValue: { type: Array, required: true }, // array of players
+  professions: { type: Array, default: () => PROFESSIONS }, // 该赛事允许的职业
 })
 const emit = defineEmits(['update:modelValue'])
 
@@ -18,7 +19,7 @@ function update(list) {
 }
 
 function addPlayer(isSub) {
-  update([...players.value, { nickname: '', profession: PROFESSIONS[0], is_substitute: isSub }])
+  update([...players.value, { nickname: '', profession: props.professions[0], is_substitute: isSub }])
 }
 
 function removePlayer(target) {
@@ -59,7 +60,7 @@ function removePlayer(target) {
       <div v-if="!p.is_substitute" class="player-row">
         <input v-model="p.nickname" placeholder="选手称呼" class="pl-name" />
         <select v-model="p.profession" class="pl-prof">
-          <option v-for="prof in PROFESSIONS" :key="prof" :value="prof">{{ prof }}</option>
+          <option v-for="prof in professions" :key="prof" :value="prof">{{ prof }}</option>
         </select>
         <button type="button" class="btn danger sm" @click="removePlayer(p)">移除</button>
       </div>
@@ -81,7 +82,7 @@ function removePlayer(target) {
       <div v-if="p.is_substitute" class="player-row">
         <input v-model="p.nickname" placeholder="替补称呼" class="pl-name" />
         <select v-model="p.profession" class="pl-prof">
-          <option v-for="prof in PROFESSIONS" :key="prof" :value="prof">{{ prof }}</option>
+          <option v-for="prof in professions" :key="prof" :value="prof">{{ prof }}</option>
         </select>
         <button type="button" class="btn danger sm" @click="removePlayer(p)">移除</button>
       </div>

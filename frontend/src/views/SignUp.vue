@@ -1,5 +1,5 @@
 <script setup>
-import { ref, reactive, computed, onMounted } from 'vue'
+import { ref, reactive, computed, onMounted, watch } from 'vue'
 import api from '../api'
 import { toast } from '../toast'
 import { validateRoster, PROFESSIONS } from '../roster'
@@ -43,6 +43,23 @@ const openTournaments = computed(() => tournaments.value.filter((t) => t.registr
 const selectedTournament = computed(() => tournaments.value.find((t) => t.id === selectedTid.value))
 const tournamentName = (id) => tournaments.value.find((t) => t.id === id)?.name || `#${id}`
 
+// 每个赛事可单独限制报名类型与职业（如 SOLO 赛只开放个人报名、部分职业）
+const allowedTypes = computed(
+  () => selectedTournament.value?.rules?.registration_types || ['team', 'solo']
+)
+const allowedProfessions = computed(
+  () => selectedTournament.value?.rules?.professions || PROFESSIONS
+)
+
+// 切换赛事后，把表单里不被该赛事允许的选择重置为允许值
+watch([allowedTypes, allowedProfessions], ([types, profs]) => {
+  if (!types.includes(form.registrationType)) form.registrationType = types[0]
+  if (!profs.includes(form.soloProfession)) form.soloProfession = profs[0]
+  form.players.forEach((p) => {
+    if (!profs.includes(p.profession)) p.profession = profs[0]
+  })
+})
+
 const isSolo = computed(() => form.registrationType === 'solo')
 const validation = computed(() => validateRoster(form.players))
 const canSubmit = computed(() => {
@@ -53,14 +70,14 @@ const canSubmit = computed(() => {
 })
 
 function resetForm() {
-  form.registrationType = 'team'
+  form.registrationType = allowedTypes.value[0]
   form.name = ''
   form.captain = ''
   form.contact = ''
   form.declaration = ''
   form.players = blankRoster()
   form.soloNickname = ''
-  form.soloProfession = '突击'
+  form.soloProfession = allowedProfessions.value[0]
 }
 
 async function loadTournaments() {
@@ -177,24 +194,21 @@ onMounted(async () => {
 
           <div class="field">
             <label>报名类型 *</label>
-            <div class="type-switch">
+            <div class="type-switch" :class="{ single: allowedTypes.length === 1 }">
               <button
+                v-for="rt in allowedTypes"
+                :key="rt"
                 type="button"
                 class="type-option"
-                :class="{ active: form.registrationType === 'team' }"
-                @click="form.registrationType = 'team'"
+                :class="{ active: form.registrationType === rt }"
+                @click="form.registrationType = rt"
               >
-                战队报名
-              </button>
-              <button
-                type="button"
-                class="type-option"
-                :class="{ active: form.registrationType === 'solo' }"
-                @click="form.registrationType = 'solo'"
-              >
-                个人报名
+                {{ REGISTRATION_LABEL[rt] || rt }}
               </button>
             </div>
+            <p v-if="allowedTypes.length === 1" class="muted tiny rule-note">
+              该赛事仅支持{{ REGISTRATION_LABEL[allowedTypes[0]] }}
+            </p>
           </div>
 
           <template v-if="!isSolo">
@@ -208,7 +222,7 @@ onMounted(async () => {
             </div>
 
             <h3 class="roster-title">参赛选手称呼及职业 *</h3>
-            <RosterEditor v-model="form.players" />
+            <RosterEditor v-model="form.players" :professions="allowedProfessions" />
           </template>
 
           <template v-else>
@@ -220,8 +234,11 @@ onMounted(async () => {
               <div class="field" style="margin-bottom: 0">
                 <label>职业 *</label>
                 <select v-model="form.soloProfession">
-                  <option v-for="prof in PROFESSIONS" :key="prof" :value="prof">{{ prof }}</option>
+                  <option v-for="prof in allowedProfessions" :key="prof" :value="prof">{{ prof }}</option>
                 </select>
+                <p v-if="allowedProfessions.length < PROFESSIONS.length" class="muted tiny rule-note">
+                  该赛事仅限职业：{{ allowedProfessions.join(' / ') }}
+                </p>
               </div>
             </div>
           </template>
@@ -318,6 +335,13 @@ onMounted(async () => {
   display: grid;
   grid-template-columns: repeat(2, 1fr);
   gap: 0.6rem;
+}
+.type-switch.single {
+  grid-template-columns: 1fr;
+}
+.rule-note {
+  margin: 0.4rem 0 0;
+  font-size: 0.78rem;
 }
 .type-option {
   min-height: 44px;

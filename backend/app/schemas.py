@@ -61,11 +61,67 @@ def poster_from_json(raw: str | None) -> "PosterConfig":
         return PosterConfig()
 
 
+class RegistrationRules(BaseModel):
+    """Per-tournament registration restrictions (报名类型与可选职业)."""
+
+    registration_types: list[str] = Field(default_factory=lambda: list(REGISTRATION_TYPES))
+    professions: list[str] = Field(default_factory=lambda: list(PROFESSIONS))
+
+    @field_validator("registration_types")
+    @classmethod
+    def valid_types(cls, v: list[str]) -> list[str]:
+        v = list(dict.fromkeys(v))  # dedupe, keep order
+        if not v:
+            raise ValueError("至少允许一种报名类型")
+        for t in v:
+            if t not in REGISTRATION_TYPES:
+                raise ValueError("报名类型不合法")
+        return v
+
+    @field_validator("professions")
+    @classmethod
+    def valid_professions(cls, v: list[str]) -> list[str]:
+        v = list(dict.fromkeys(v))
+        if not v:
+            raise ValueError("至少允许一个职业")
+        for p in v:
+            if p not in PROFESSIONS:
+                raise ValueError(f"职业必须是 {PROFESSIONS} 之一")
+        return v
+
+
+def rules_from_json(raw: str | None) -> "RegistrationRules":
+    if not raw:
+        return RegistrationRules()
+    try:
+        return RegistrationRules(**json.loads(raw))
+    except (ValueError, TypeError):
+        return RegistrationRules()
+
+
+REGISTRATION_TYPE_LABEL = {REGISTRATION_TEAM: "战队报名", REGISTRATION_SOLO: "个人报名"}
+
+
+def registration_rule_error(
+    registration_type: str, players: list["PlayerIn"], rules: RegistrationRules
+) -> str | None:
+    """Check a signup against the tournament's rules. Returns a message or None."""
+    if registration_type not in rules.registration_types:
+        label = REGISTRATION_TYPE_LABEL.get(registration_type, registration_type)
+        return f"该赛事不支持{label}"
+    allowed = "/".join(rules.professions)
+    for p in players:
+        if p.profession not in rules.professions:
+            return f"该赛事仅限职业 {allowed}，「{p.profession}」不可报名"
+    return None
+
+
 class TournamentCreate(BaseModel):
     name: str = Field(min_length=1, max_length=128)
     description: str = Field(default="", max_length=2000)
     registration_deadline: datetime
     poster: Optional[PosterConfig] = None
+    rules: Optional[RegistrationRules] = None
 
 
 class TournamentUpdate(BaseModel):
@@ -73,6 +129,7 @@ class TournamentUpdate(BaseModel):
     description: Optional[str] = Field(default=None, max_length=2000)
     registration_deadline: Optional[datetime] = None
     poster: Optional[PosterConfig] = None
+    rules: Optional[RegistrationRules] = None
 
 
 class TournamentOut(BaseModel):
@@ -84,6 +141,7 @@ class TournamentOut(BaseModel):
     results_public: bool
     team_count: int = 0
     poster: PosterConfig = PosterConfig()
+    rules: RegistrationRules = RegistrationRules()
 
 
 class UserOut(BaseModel):

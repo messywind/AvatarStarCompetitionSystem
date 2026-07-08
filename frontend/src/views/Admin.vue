@@ -79,15 +79,33 @@ function blankPoster() {
   return Object.fromEntries(POSTER_KEYS.map((k) => [k, '']))
 }
 
+const REGISTRATION_TYPES = ['team', 'solo']
+
+// 当前选中赛事允许的报名类型与职业（新增/编辑报名时按此过滤选项）
+const scopeAllowedTypes = computed(
+  () => selectedTournament.value?.rules?.registration_types || REGISTRATION_TYPES
+)
+const scopeAllowedProfessions = computed(
+  () => selectedTournament.value?.rules?.professions || PROFESSIONS
+)
+
 const tourModal = ref(false)
 const tourEditingId = ref(null)
-const tourForm = reactive({ name: '', description: '', registration_deadline: '' })
+const tourForm = reactive({
+  name: '',
+  description: '',
+  registration_deadline: '',
+  registration_types: [...REGISTRATION_TYPES],
+  professions: [...PROFESSIONS],
+})
 
 function openTourCreate() {
   tourEditingId.value = null
   tourForm.name = ''
   tourForm.description = ''
   tourForm.registration_deadline = ''
+  tourForm.registration_types = [...REGISTRATION_TYPES]
+  tourForm.professions = [...PROFESSIONS]
   tourModal.value = true
 }
 function openTourEdit(t) {
@@ -95,15 +113,23 @@ function openTourEdit(t) {
   tourForm.name = t.name
   tourForm.description = t.description || ''
   tourForm.registration_deadline = toLocalInput(t.registration_deadline)
+  tourForm.registration_types = [...(t.rules?.registration_types || REGISTRATION_TYPES)]
+  tourForm.professions = [...(t.rules?.professions || PROFESSIONS)]
   tourModal.value = true
 }
 async function saveTour() {
   if (!tourForm.name.trim()) return toast('请填写赛事名称', 'error')
   if (!tourForm.registration_deadline) return toast('请设置报名截止时间', 'error')
+  if (!tourForm.registration_types.length) return toast('至少勾选一种报名类型', 'error')
+  if (!tourForm.professions.length) return toast('至少勾选一个可选职业', 'error')
   const payload = {
     name: tourForm.name.trim(),
     description: tourForm.description.trim(),
     registration_deadline: tourForm.registration_deadline,
+    rules: {
+      registration_types: REGISTRATION_TYPES.filter((t) => tourForm.registration_types.includes(t)),
+      professions: PROFESSIONS.filter((p) => tourForm.professions.includes(p)),
+    },
   }
   try {
     if (tourEditingId.value) {
@@ -284,6 +310,12 @@ const canCreate = computed(
 
 function openCreate() {
   Object.assign(createForm, blankTeamForm())
+  createForm.registration_type = scopeAllowedTypes.value[0]
+  createForm.players.forEach((p) => {
+    if (!scopeAllowedProfessions.value.includes(p.profession)) {
+      p.profession = scopeAllowedProfessions.value[0]
+    }
+  })
   creating.value = true
 }
 
@@ -937,6 +969,27 @@ onMounted(async () => {
             <input v-model="tourForm.registration_deadline" type="datetime-local" />
             <p class="muted tiny" style="margin-top:0.35rem">截止后才会向所有人公开参赛名单与对阵图；截止前用户只能看到自己的报名。</p>
           </div>
+          <div class="field">
+            <label>报名类型 *</label>
+            <div class="check-row">
+              <label v-for="rt in REGISTRATION_TYPES" :key="rt" class="check-item">
+                <input v-model="tourForm.registration_types" type="checkbox" :value="rt" />
+                {{ REGISTRATION_LABEL[rt] }}
+              </label>
+            </div>
+            <p class="muted tiny" style="margin-top:0.35rem">例如 SOLO 赛只勾选「个人报名」。</p>
+          </div>
+          <div class="field">
+            <label>可选职业 *</label>
+            <div class="check-row">
+              <label v-for="prof in PROFESSIONS" :key="prof" class="check-item">
+                <input v-model="tourForm.professions" type="checkbox" :value="prof" />
+                <span class="dot" :style="{ background: `var(--prof-${prof})` }"></span>
+                {{ prof }}
+              </label>
+            </div>
+            <p class="muted tiny" style="margin-top:0.35rem">报名时只能选择勾选的职业，例如三职业赛不勾选「生化」。</p>
+          </div>
           <p class="muted tiny">参赛规则与比赛公告请在赛事列表中通过「编辑规则」「编辑公告」按钮单独配置。</p>
 
           <button class="btn modal-submit" @click="saveTour">
@@ -1067,8 +1120,7 @@ onMounted(async () => {
           <div class="field">
             <label>报名类型</label>
             <select v-model="createForm.registration_type" class="status-select">
-              <option value="team">战队报名</option>
-              <option value="solo">个人报名</option>
+              <option v-for="rt in scopeAllowedTypes" :key="rt" :value="rt">{{ REGISTRATION_LABEL[rt] }}</option>
             </select>
           </div>
           <template v-if="!createIsSolo">
@@ -1080,7 +1132,7 @@ onMounted(async () => {
             <div class="field">
               <label>职业 *</label>
               <select v-model="createForm.players[0].profession" class="status-select">
-                <option v-for="prof in PROFESSIONS" :key="prof" :value="prof">{{ prof }}</option>
+                <option v-for="prof in scopeAllowedProfessions" :key="prof" :value="prof">{{ prof }}</option>
               </select>
             </div>
           </template>
@@ -1095,7 +1147,7 @@ onMounted(async () => {
           </div>
           <template v-if="!createIsSolo">
             <h4>参赛阵容 *</h4>
-            <RosterEditor v-model="createForm.players" />
+            <RosterEditor v-model="createForm.players" :professions="scopeAllowedProfessions" />
           </template>
           <div class="field" style="margin-top: 1rem"><label>作战宣言</label><textarea v-model="createForm.declaration" maxlength="2000"></textarea></div>
           <button class="btn modal-submit" :disabled="!canCreate" @click="saveCreate">
@@ -1119,22 +1171,21 @@ onMounted(async () => {
           <div class="field">
             <label>报名类型</label>
             <select v-model="editForm.registration_type" class="status-select">
-              <option value="team">战队报名</option>
-              <option value="solo">个人报名</option>
+              <option v-for="rt in scopeAllowedTypes" :key="rt" :value="rt">{{ REGISTRATION_LABEL[rt] }}</option>
             </select>
           </div>
           <template v-if="!editIsSolo">
             <div class="field"><label>队伍名称</label><input v-model="editForm.name" /></div>
             <div class="field"><label>队长</label><input v-model="editForm.captain" /></div>
             <h4>参赛阵容</h4>
-            <RosterEditor v-model="editForm.players" />
+            <RosterEditor v-model="editForm.players" :professions="scopeAllowedProfessions" />
           </template>
           <template v-else>
             <div class="field"><label>称呼</label><input v-model="editForm.players[0].nickname" /></div>
             <div class="field">
               <label>职业</label>
               <select v-model="editForm.players[0].profession" class="status-select">
-                <option v-for="prof in PROFESSIONS" :key="prof" :value="prof">{{ prof }}</option>
+                <option v-for="prof in scopeAllowedProfessions" :key="prof" :value="prof">{{ prof }}</option>
               </select>
             </div>
           </template>
@@ -1285,6 +1336,26 @@ td strong {
 .icon-close:active { transform: scale(0.94); }
 .icon-close:focus-visible { outline: none; box-shadow: 0 0 0 3px rgba(0, 113, 227, 0.22); }
 .modal-submit { width: 100%; margin-top: 0.4rem; min-height: 46px; font-size: 1rem; }
+/* ---- Tournament rules checkboxes ---- */
+.check-row {
+  display: flex;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+.check-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.9rem;
+  cursor: pointer;
+  user-select: none;
+}
+.check-item input[type='checkbox'] {
+  width: auto;
+  margin: 0;
+  accent-color: var(--primary);
+}
+
 .poster-group {
   margin: 1.6rem 0 0.8rem;
   padding-top: 1.1rem;

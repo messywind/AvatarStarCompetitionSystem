@@ -1,3 +1,4 @@
+import json
 from contextlib import asynccontextmanager
 from datetime import datetime, timedelta
 
@@ -13,6 +14,25 @@ from .routers import admin, auth, public, teams
 
 DEFAULT_TOURNAMENT_NAME = "百变兵团第一届选花杯"
 LEGACY_BRACKET_KEY = "bracket"
+
+SECOND_TOURNAMENT_NAME = "百变兵团第二届选花杯"
+SECOND_TOURNAMENT_FLAG = "bootstrap_xuanhua_2"  # 只自动创建一次，管理员删除后不再重建
+SECOND_TOURNAMENT_RULES = {
+    "registration_types": ["solo"],
+    "professions": ["突击", "重装", "护卫"],
+}
+SECOND_TOURNAMENT_POSTER = {
+    "format": "三职业 SOLO 单人赛",
+    "profession_limit": "仅限 突击 / 重装 / 护卫 三职业\n本届不开放生化职业",
+    "other_limit": "其余以赛事官方为准",
+    "announcement": (
+        "第二届选花杯为**三职业 SOLO 赛**\n"
+        "仅限**突击 / 重装 / 护卫**职业报名\n"
+        "采用**个人报名**，无需组队\n"
+        "**8 月 8 日**正式开赛"
+    ),
+    "announcement_footer": "单人报名，8 月 8 日开战！",
+}
 
 
 def bootstrap_admin() -> None:
@@ -89,6 +109,16 @@ def run_migrations() -> None:
         if not poster_col:
             conn.execute(text("ALTER TABLE tournaments ADD COLUMN poster_json TEXT NULL"))
 
+        rules_col = conn.execute(
+            text(
+                "SELECT COUNT(*) FROM information_schema.COLUMNS "
+                "WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'tournaments' "
+                "AND COLUMN_NAME = 'rules_json'"
+            )
+        ).scalar()
+        if not rules_col:
+            conn.execute(text("ALTER TABLE tournaments ADD COLUMN rules_json TEXT NULL"))
+
 
 def bootstrap_default_tournament() -> None:
     """Ensure at least one tournament exists and every team belongs to one.
@@ -122,6 +152,31 @@ def bootstrap_default_tournament() -> None:
         db.close()
 
 
+def bootstrap_second_tournament() -> None:
+    """One-time creation of 第二届选花杯 (8.8 开赛，三职业 SOLO 赛).
+
+    Guarded by a settings flag so it is not recreated if an admin deletes it.
+    """
+    db = SessionLocal()
+    try:
+        if db.query(Setting).filter(Setting.key == SECOND_TOURNAMENT_FLAG).first():
+            return
+        if not db.query(Tournament).filter(Tournament.name == SECOND_TOURNAMENT_NAME).first():
+            db.add(
+                Tournament(
+                    name=SECOND_TOURNAMENT_NAME,
+                    description="百变兵团民间赛事 · 第二届选花杯 · 三职业 SOLO 赛（8 月 8 日开赛）",
+                    registration_deadline=datetime(2026, 8, 8, 0, 0, 0),
+                    rules_json=json.dumps(SECOND_TOURNAMENT_RULES, ensure_ascii=False),
+                    poster_json=json.dumps(SECOND_TOURNAMENT_POSTER, ensure_ascii=False),
+                )
+            )
+        db.add(Setting(key=SECOND_TOURNAMENT_FLAG, value="done"))
+        db.commit()
+    finally:
+        db.close()
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     ensure_database_exists()
@@ -129,6 +184,7 @@ async def lifespan(app: FastAPI):
     run_migrations()
     bootstrap_admin()
     bootstrap_default_tournament()
+    bootstrap_second_tournament()
     yield
 
 

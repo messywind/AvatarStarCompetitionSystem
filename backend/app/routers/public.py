@@ -11,7 +11,7 @@ from ..models import (
     registration_open,
     results_public,
 )
-from ..schemas import Bracket, TeamPublicOut, TournamentOut, poster_from_json
+from ..schemas import Bracket, TeamPublicOut, TournamentOut, poster_from_json, rules_from_json
 
 router = APIRouter(prefix="/api/public", tags=["public"])
 
@@ -38,6 +38,7 @@ def _tournament_out(db: Session, t: Tournament) -> TournamentOut:
         results_public=results_public(t),
         team_count=count,
         poster=poster_from_json(t.poster_json),
+        rules=rules_from_json(t.rules_json),
     )
 
 

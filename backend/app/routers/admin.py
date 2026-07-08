@@ -29,6 +29,8 @@ from ..schemas import (
     TournamentOut,
     TournamentUpdate,
     poster_from_json,
+    registration_rule_error,
+    rules_from_json,
 )
 
 router = APIRouter(prefix="/api/admin", tags=["admin"], dependencies=[Depends(require_admin)])
@@ -66,6 +68,7 @@ def _tournament_out(db: Session, t: Tournament) -> TournamentOut:
         results_public=results_public(t),
         team_count=count,
         poster=poster_from_json(t.poster_json),
+        rules=rules_from_json(t.rules_json),
     )
 
 
@@ -85,6 +88,7 @@ def create_tournament(payload: TournamentCreate, db: Session = Depends(get_db)):
         description=payload.description,
         registration_deadline=payload.registration_deadline,
         poster_json=payload.poster.model_dump_json() if payload.poster else "",
+        rules_json=payload.rules.model_dump_json() if payload.rules else "",
     )
     db.add(t)
     db.commit()
@@ -103,6 +107,8 @@ def update_tournament(tournament_id: int, payload: TournamentUpdate, db: Session
         t.registration_deadline = payload.registration_deadline
     if payload.poster is not None:
         t.poster_json = payload.poster.model_dump_json()
+    if payload.rules is not None:
+        t.rules_json = payload.rules.model_dump_json()
     db.commit()
     db.refresh(t)
     return _tournament_out(db, t)
@@ -193,7 +199,12 @@ def create_team(
     admin: User = Depends(require_admin),
 ):
     """Admin manually adds a team; owned by the admin account, status set directly."""
-    _get_tournament_or_404(db, payload.tournament_id)
+    tournament = _get_tournament_or_404(db, payload.tournament_id)
+    rule_error = registration_rule_error(
+        payload.registration_type, payload.players, rules_from_json(tournament.rules_json)
+    )
+    if rule_error:
+        raise HTTPException(status_code=400, detail=rule_error)
     name, captain = _normalize_team_fields(payload)
     team = Team(
         tournament_id=payload.tournament_id,
@@ -224,6 +235,12 @@ def get_team(team_id: int, db: Session = Depends(get_db)):
 def edit_team(team_id: int, payload: TeamUpdate, db: Session = Depends(get_db)):
     team = _get_team_or_404(db, team_id)
     next_registration_type = payload.registration_type or team.registration_type
+    if payload.players is not None and team.tournament:
+        rule_error = registration_rule_error(
+            next_registration_type, payload.players, rules_from_json(team.tournament.rules_json)
+        )
+        if rule_error:
+            raise HTTPException(status_code=400, detail=rule_error)
     if payload.registration_type is not None:
         team.registration_type = payload.registration_type
     if payload.name is not None:
