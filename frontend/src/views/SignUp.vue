@@ -167,7 +167,9 @@ onMounted(async () => {
 <template>
   <div class="container">
     <h1>赛事报名</h1>
-    <p class="muted">选择赛事后，可提交战队报名或个人报名，资料提交后由管理员审核。</p>
+    <p class="muted">
+      选择赛事后，按该赛事支持的方式（{{ allowedTypes.map((t) => REGISTRATION_LABEL[t]).join(' / ') }}）提交报名，资料提交后由管理员审核。
+    </p>
 
     <div class="signup-grid">
       <div class="panel">
