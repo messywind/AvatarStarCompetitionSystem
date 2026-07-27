@@ -54,7 +54,20 @@ def bootstrap_admin() -> None:
 
 def run_migrations() -> None:
     """Lightweight schema migration for pre-existing databases (no Alembic)."""
-    # 仅针对存量 MySQL 库；SQLite 等本地开发库由 create_all 直接建全表
+    if engine.dialect.name == "sqlite":
+        with engine.begin() as conn:
+            columns = {
+                row[1] for row in conn.execute(text("PRAGMA table_info(tournaments)")).fetchall()
+            }
+            if "is_visible" not in columns:
+                conn.execute(
+                    text(
+                        "ALTER TABLE tournaments "
+                        "ADD COLUMN is_visible BOOLEAN NOT NULL DEFAULT 1"
+                    )
+                )
+        return
+
     if not engine.dialect.name.startswith("mysql"):
         return
     with engine.begin() as conn:
@@ -129,6 +142,21 @@ def run_migrations() -> None:
         if not avatar_col:
             # 头像为 base64 data URL，TEXT 的 64KB 不够用
             conn.execute(text("ALTER TABLE tournaments ADD COLUMN avatar MEDIUMTEXT NULL"))
+
+        visibility_col = conn.execute(
+            text(
+                "SELECT COUNT(*) FROM information_schema.COLUMNS "
+                "WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'tournaments' "
+                "AND COLUMN_NAME = 'is_visible'"
+            )
+        ).scalar()
+        if not visibility_col:
+            conn.execute(
+                text(
+                    "ALTER TABLE tournaments "
+                    "ADD COLUMN is_visible BOOLEAN NOT NULL DEFAULT TRUE"
+                )
+            )
 
 
 def bootstrap_default_tournament() -> None:

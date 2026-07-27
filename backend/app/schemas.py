@@ -137,6 +137,7 @@ class TournamentCreate(BaseModel):
     poster: Optional[PosterConfig] = None
     rules: Optional[RegistrationRules] = None
     avatar: str = ""
+    is_visible: bool = True
 
     @field_validator("avatar")
     @classmethod
@@ -152,6 +153,7 @@ class TournamentUpdate(BaseModel):
     rules: Optional[RegistrationRules] = None
     # None = 不修改；空字符串 = 清除头像（回退默认图）
     avatar: Optional[str] = None
+    is_visible: Optional[bool] = None
 
     @field_validator("avatar")
     @classmethod
@@ -170,6 +172,7 @@ class TournamentOut(BaseModel):
     poster: PosterConfig = PosterConfig()
     rules: RegistrationRules = RegistrationRules()
     avatar: str = ""
+    is_visible: bool = True
 
 
 class UserOut(BaseModel):

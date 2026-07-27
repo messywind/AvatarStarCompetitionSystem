@@ -17,7 +17,11 @@ router = APIRouter(prefix="/api/public", tags=["public"])
 
 
 def _get_tournament_or_404(db: Session, tournament_id: int) -> Tournament:
-    t = db.query(Tournament).filter(Tournament.id == tournament_id).first()
+    t = (
+        db.query(Tournament)
+        .filter(Tournament.id == tournament_id, Tournament.is_visible.is_(True))
+        .first()
+    )
     if not t:
         raise HTTPException(status_code=404, detail="赛事不存在")
     return t
@@ -40,12 +44,18 @@ def _tournament_out(db: Session, t: Tournament) -> TournamentOut:
         poster=poster_from_json(t.poster_json),
         rules=rules_from_json(t.rules_json),
         avatar=t.avatar or "",
+        is_visible=t.is_visible,
     )
 
 
 @router.get("/tournaments", response_model=list[TournamentOut])
 def list_tournaments(db: Session = Depends(get_db)):
-    rows = db.query(Tournament).order_by(Tournament.created_at.desc()).all()
+    rows = (
+        db.query(Tournament)
+        .filter(Tournament.is_visible.is_(True))
+        .order_by(Tournament.created_at.desc())
+        .all()
+    )
     return [_tournament_out(db, t) for t in rows]
 
 

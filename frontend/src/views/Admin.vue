@@ -244,6 +244,16 @@ function deleteTour(t) {
   })
 }
 
+async function toggleTourVisibility(t) {
+  try {
+    await api.put(`/admin/tournaments/${t.id}`, { is_visible: !t.is_visible })
+    toast(t.is_visible ? '赛事已隐藏' : '赛事已恢复展示', 'success')
+    await loadTournaments()
+  } catch (e) {
+    toast(e.message || '操作失败', 'error')
+  }
+}
+
 // ------- Teams -------
 async function loadTeams() {
   if (!selectedTid.value) {
@@ -768,9 +778,12 @@ onMounted(async () => {
               <td><strong>{{ t.name }}</strong><div v-if="t.description" class="muted tiny">{{ t.description }}</div></td>
               <td>{{ formatDeadline(t.registration_deadline) }}</td>
               <td>
-                <span class="badge" :class="t.results_public ? 'approved' : 'pending'">
-                  {{ t.results_public ? '已截止' : '报名中' }}
-                </span>
+                <div class="actions">
+                  <span class="badge" :class="t.results_public ? 'approved' : 'pending'">
+                    {{ t.results_public ? '已截止' : '报名中' }}
+                  </span>
+                  <span v-if="!t.is_visible" class="badge rejected">已隐藏</span>
+                </div>
               </td>
               <td>{{ t.team_count }}</td>
               <td>
@@ -778,6 +791,9 @@ onMounted(async () => {
                   <button class="btn tint sm" @click="openTourEdit(t)">编辑</button>
                   <button class="btn tint sm" @click="openRulesEdit(t)">编辑规则</button>
                   <button class="btn tint sm" @click="openAnnounceEdit(t)">编辑公告</button>
+                  <button class="btn tint sm" @click="toggleTourVisibility(t)">
+                    {{ t.is_visible ? '隐藏' : '显示' }}
+                  </button>
                   <button class="btn tint danger sm" @click="deleteTour(t)">删除</button>
                 </div>
               </td>

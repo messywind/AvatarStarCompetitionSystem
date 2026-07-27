@@ -26,7 +26,11 @@ def _normalize_team_fields(payload: TeamCreate) -> tuple[str, str]:
 @router.post("", response_model=TeamOut, status_code=201)
 def create_team(payload: TeamCreate, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
     """Registered users submit a team to a tournament. Starts as pending review."""
-    tournament = db.query(Tournament).filter(Tournament.id == payload.tournament_id).first()
+    tournament = (
+        db.query(Tournament)
+        .filter(Tournament.id == payload.tournament_id, Tournament.is_visible.is_(True))
+        .first()
+    )
     if not tournament:
         raise HTTPException(status_code=404, detail="赛事不存在")
     if not registration_open(tournament):
@@ -64,7 +68,11 @@ def my_teams(
     user: User = Depends(get_current_user),
 ):
     """The teams the current user has registered (optionally scoped to a tournament)."""
-    q = db.query(Team).filter(Team.owner_id == user.id)
+    q = (
+        db.query(Team)
+        .join(Tournament, Team.tournament_id == Tournament.id)
+        .filter(Team.owner_id == user.id, Tournament.is_visible.is_(True))
+    )
     if tournament_id is not None:
         q = q.filter(Team.tournament_id == tournament_id)
     return q.order_by(Team.created_at.desc()).all()

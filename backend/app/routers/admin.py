@@ -70,6 +70,7 @@ def _tournament_out(db: Session, t: Tournament) -> TournamentOut:
         poster=poster_from_json(t.poster_json),
         rules=rules_from_json(t.rules_json),
         avatar=t.avatar or "",
+        is_visible=t.is_visible,
     )
 
 
@@ -91,6 +92,7 @@ def create_tournament(payload: TournamentCreate, db: Session = Depends(get_db)):
         poster_json=payload.poster.model_dump_json() if payload.poster else "",
         rules_json=payload.rules.model_dump_json() if payload.rules else "",
         avatar=payload.avatar,
+        is_visible=payload.is_visible,
     )
     db.add(t)
     db.commit()
@@ -113,6 +115,8 @@ def update_tournament(tournament_id: int, payload: TournamentUpdate, db: Session
         t.rules_json = payload.rules.model_dump_json()
     if payload.avatar is not None:
         t.avatar = payload.avatar
+    if payload.is_visible is not None:
+        t.is_visible = payload.is_visible
     db.commit()
     db.refresh(t)
     return _tournament_out(db, t)

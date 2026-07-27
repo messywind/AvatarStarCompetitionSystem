@@ -54,6 +54,9 @@ class Tournament(Base):
     # Card avatar image as a data URL; empty falls back to the frontend default.
     # MEDIUMTEXT on MySQL: base64 images easily exceed TEXT's 64KB cap.
     avatar: Mapped[str] = mapped_column(Text().with_variant(MEDIUMTEXT(), "mysql"), default="")
+    # Hidden tournaments remain fully manageable by admins, but are omitted from
+    # every user-facing tournament list and public endpoint.
+    is_visible: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(
         DateTime, server_default=func.now(), onupdate=func.now()
