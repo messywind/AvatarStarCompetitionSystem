@@ -3,7 +3,7 @@ import { ref } from 'vue'
 import { useRouter, RouterLink } from 'vue-router'
 import { useAuthStore } from '../stores/auth'
 import { toast } from '../toast'
-import logo from '../assets/logo.png'
+import AuthLayout from '../components/AuthLayout.vue'
 
 const auth = useAuthStore()
 const router = useRouter()
@@ -31,54 +31,26 @@ async function submit() {
 </script>
 
 <template>
-  <div class="container auth-page">
-    <div class="panel auth-card">
-      <img :src="logo" alt="百变兵团" class="auth-logo" />
+  <AuthLayout register>
       <h1>注册账号</h1>
-      <p class="muted">注册后即可报名参赛。</p>
+      <p class="auth-intro">注册后即可报名参赛。</p>
       <form @submit.prevent="submit">
         <div class="field">
-          <label>用户名（至少 3 位）</label>
-          <input v-model="username" autocomplete="username" placeholder="设置你的用户名" />
+          <label for="register-username">用户名（至少 3 位）</label>
+          <input id="register-username" required v-model="username" autocomplete="username" placeholder="设置你的用户名" />
         </div>
         <div class="field">
-          <label>密码（至少 6 位）</label>
-          <input v-model="password" type="password" autocomplete="new-password" placeholder="设置密码" />
+          <label for="register-password">密码（至少 6 位）</label>
+          <input id="register-password" required v-model="password" type="password" autocomplete="new-password" placeholder="设置密码" />
         </div>
         <div class="field">
-          <label>确认密码</label>
-          <input v-model="password2" type="password" autocomplete="new-password" placeholder="再次输入密码" />
+          <label for="register-password2">确认密码</label>
+          <input id="register-password2" required v-model="password2" type="password" autocomplete="new-password" placeholder="再次输入密码" />
         </div>
         <button class="btn accent" style="width: 100%" :disabled="loading">
           {{ loading ? '注册中…' : '注册' }}
         </button>
       </form>
       <p class="muted switch">已有账号？<RouterLink to="/login">去登录</RouterLink></p>
-    </div>
-  </div>
+  </AuthLayout>
 </template>
-
-<style scoped>
-.auth-page { display: flex; justify-content: center; padding-top: 3rem; }
-.auth-card { width: min(420px, 100%); animation: auth-in 0.34s var(--ease-soft) both; }
-.auth-logo { display: block; height: 40px; margin: 0 auto 1.2rem; transition: transform 0.24s var(--ease-soft); }
-.auth-card:hover .auth-logo { transform: translateY(-2px); }
-.switch { margin-top: 1rem; text-align: center; }
-
-@keyframes auth-in {
-  from { opacity: 0; transform: translateY(12px); }
-  to { opacity: 1; transform: none; }
-}
-
-@media (max-width: 520px) {
-  .auth-page {
-    padding-top: 1.5rem;
-  }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .auth-card {
-    animation: none;
-  }
-}
-</style>

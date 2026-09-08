@@ -10,6 +10,8 @@ import Poster from '../components/Poster.vue'
 import Announcement from '../components/Announcement.vue'
 import Spinner from '../components/Spinner.vue'
 import { tournamentVisual } from '../tournamentAssets'
+import PageHeading from '../components/PageHeading.vue'
+import Icon from '../components/Icon.vue'
 
 const auth = useAuthStore()
 
@@ -24,6 +26,7 @@ const stages = ref([])
 const teamMap = ref({})
 const loading = ref(false)
 const booting = ref(true)
+const bootError = ref('')
 const activeTeam = ref(null)
 const detailTournament = ref(null)
 const announceTournament = ref(null)
@@ -87,23 +90,30 @@ function openTournamentAnnounce(tournament) {
 }
 
 watch(selectedTid, loadContent)
-onMounted(async () => {
+async function boot() {
+  booting.value = true
+  bootError.value = ''
   try {
     await loadTournaments()
     await loadContent()
+  } catch (e) {
+    bootError.value = e.message || '赛事加载失败，请稍后重试'
   } finally {
     booting.value = false
   }
-})
+}
+onMounted(boot)
 </script>
 
 <template>
   <div class="container">
-    <h1>赛事浏览</h1>
-    <p class="muted">报名截止后公布全部参赛名单与晋级对阵；报名期间仅可查看自己的报名。</p>
+<PageHeading title="赛事浏览" description="选择一场赛事，查看比赛公告、参赛名单与晋级对阵。" icon="trophy"><RouterLink to="/signup" class="btn">我要报名<Icon name="arrow" :size="17" /></RouterLink></PageHeading>
 
     <!-- Tournament cards -->
     <Spinner v-if="booting && !tournaments.length" label="加载赛事中" />
+    <div v-if="bootError" class="empty-state" role="alert"><Icon name="flag" /><h2>赛事暂时未能加载</h2><p>{{ bootError }}</p><button class="btn" @click="boot">重新加载</button></div>
+    <div v-else-if="!booting && !tournaments.length" class="empty-state"><Icon name="trophy" /><h2>下一场精彩，正在准备</h2><p>暂时没有公开赛事。赛事发布后，你可以在这里查看规则和报名安排。</p><RouterLink to="/" class="btn ghost">返回赛事大厅</RouterLink></div>
+    <div v-if="tournaments.length" class="list-heading"><h2>全部赛事 <span>{{ tournaments.length }}</span></h2><p>选择赛事查看详细信息</p></div>
     <div v-if="tournaments.length" class="tournament-grid">
       <article
         v-for="(t, i) in tournaments"
@@ -111,6 +121,11 @@ onMounted(async () => {
         class="tournament-card"
         :class="{ active: t.id === selectedTid }"
         :style="{ '--i': i }"
+        tabindex="0"
+        role="group"
+        :aria-label="`${t.name}${t.id === selectedTid ? '，当前选中' : '，按回车选择赛事'}`"
+        @keydown.enter.self="selectTournament(t)"
+        @keydown.space.prevent.self="selectTournament(t)"
         @click="selectTournament(t)"
       >
         <div class="tournament-main">
@@ -120,7 +135,7 @@ onMounted(async () => {
               <h3>{{ t.name }}</h3>
               <span class="spacer"></span>
               <span class="tour-state" :class="t.results_public ? 'done' : 'live'">
-                {{ t.results_public ? '已公布' : '报名中' }}
+                {{ t.results_public ? '已公布' : t.registration_open ? '报名中' : '待公布' }}
               </span>
             </div>
             <p class="muted">{{ t.description || '百变兵团民间赛事，等待报名者集结。' }}</p>
@@ -149,11 +164,11 @@ onMounted(async () => {
         <!-- Registration still open: gated -->
         <div v-if="!isPublic">
           <div class="panel gate">
-            <div class="gate-icon">🔒</div>
-            <h2>报名进行中</h2>
+            <div class="gate-icon"><Icon name="clock" :size="29" /></div>
+            <h2>{{ selected.registration_open ? '战队集结中，敬请期待对阵' : '报名已截止，等待赛事公布' }}</h2>
             <p class="muted">
-              该赛事将于 <strong>{{ formatDeadline(selected.registration_deadline) }}</strong>
-              （{{ countdown(selected.registration_deadline) }}）报名截止，届时公布全部参赛名单与对阵图。
+              报名截止时间：<strong>{{ formatDeadline(selected.registration_deadline) }}</strong>
+              （{{ countdown(selected.registration_deadline) }}）。赛事公布后，可在这里查看参赛名单与晋级对阵。
             </p>
           </div>
 
@@ -167,6 +182,8 @@ onMounted(async () => {
                 :key="t.id"
                 class="card team-card"
                 :style="{ '--i': i }"
+                tabindex="0" role="button" :aria-label="`查看${t.name}报名详情`"
+                @keydown.enter="activeTeam = t" @keydown.space.prevent="activeTeam = t"
                 @click="activeTeam = t"
               >
                 <div class="row">
@@ -208,7 +225,9 @@ onMounted(async () => {
               :key="t.id"
               class="card team-card"
               :style="{ '--i': i }"
-              @click="activeTeam = t"
+              tabindex="0" role="button" :aria-label="`查看${t.name}报名详情`"
+                @keydown.enter="activeTeam = t" @keydown.space.prevent="activeTeam = t"
+                @click="activeTeam = t"
             >
               <div class="row">
                 <h3 style="margin: 0">{{ t.name }}</h3>
@@ -279,7 +298,7 @@ onMounted(async () => {
     <Transition name="modal-fade">
       <div v-if="detailTournament" class="modal-backdrop poster-backdrop" @click.self="detailTournament = null">
         <div class="poster-shell">
-          <button class="poster-close" @click="detailTournament = null">✕</button>
+          <button class="poster-close" aria-label="关闭弹窗" @click="detailTournament = null">✕</button>
           <Poster :tournament="detailTournament" />
         </div>
       </div>
@@ -289,7 +308,7 @@ onMounted(async () => {
     <Transition name="modal-fade">
       <div v-if="announceTournament" class="modal-backdrop poster-backdrop" @click.self="announceTournament = null">
         <div class="poster-shell">
-          <button class="poster-close" @click="announceTournament = null">✕</button>
+          <button class="poster-close" aria-label="关闭弹窗" @click="announceTournament = null">✕</button>
           <Announcement :tournament="announceTournament" />
         </div>
       </div>
@@ -298,252 +317,50 @@ onMounted(async () => {
 </template>
 
 <style scoped>
-.tournament-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
-  gap: 1rem;
-  margin: 1.25rem 0 1.75rem;
-}
-.tournament-card {
-  display: flex;
-  flex-direction: column;
-  gap: 1rem;
-  padding: 1.15rem;
-  border-radius: var(--radius);
-  border: 1px solid var(--border);
-  background: var(--panel);
-  box-shadow: var(--shadow-sm);
-  cursor: pointer;
-  animation: card-rise 0.38s var(--ease-soft) both;
-  animation-delay: calc(min(var(--i), 8) * 55ms);
-  transition: border-color 0.18s var(--ease-out), box-shadow 0.18s var(--ease-out), transform 0.18s var(--ease-out);
-}
-.tournament-card:hover { border-color: rgba(0, 113, 227, 0.38); }
-.tournament-card.active {
-  border-color: var(--primary);
-  box-shadow: 0 0 0 3px rgba(0, 113, 227, 0.12), var(--shadow-sm);
-}
-.tournament-main {
-  display: grid;
-  grid-template-columns: 72px 1fr;
-  gap: 1rem;
-  align-items: start;
-}
-.tournament-avatar {
-  width: 72px;
-  height: 72px;
-  border-radius: 18px;
-  object-fit: cover;
-  border: 1px solid var(--border);
-  transition: transform 0.28s var(--ease-soft), filter 0.28s var(--ease-out);
-}
-.tournament-card:hover .tournament-avatar { transform: scale(1.035); }
-.tournament-copy h3 {
-  margin: 0;
-  font-size: 1.08rem;
-  line-height: 1.35;
-}
-.tournament-copy p {
-  margin: 0.35rem 0 0;
-  line-height: 1.6;
-}
-.tournament-meta {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.55rem;
-  color: var(--muted);
-  font-size: 0.85rem;
-}
-.tournament-meta span {
-  display: inline-flex;
-  align-items: center;
-  min-height: 28px;
-  padding: 0.25rem 0.65rem;
-  border-radius: 999px;
-  background: var(--bg-2);
-}
-.tournament-meta strong { color: var(--text); }
-.card-actions {
-  display: flex;
-  gap: 0.6rem;
-  margin-top: auto;
-}
-.card-actions .btn {
-  flex: 1;
-  padding: 0.72rem 1rem;
-}
-.announce-btn {
-  border: 1px solid rgba(0, 113, 227, 0.35);
-  color: var(--primary);
-}
-.tour-state { font-size: 0.68rem; padding: 1px 7px; border-radius: 999px; font-weight: 700; }
-.tour-state.live { background: rgba(255, 149, 0, 0.18); color: #a85e00; }
-.tour-state.done { background: rgba(52, 199, 89, 0.2); color: #1f7a34; }
-
-.gate { text-align: center; padding: 2.5rem 1.5rem; }
-.gate-icon {
-  font-size: 2.4rem;
-  margin-bottom: 0.4rem;
-  animation: lock-pop 0.42s var(--ease-soft) both;
-}
-.gate p { max-width: 560px; margin: 0.4rem auto 0; }
-.login-hint { margin-top: 1rem; }
-
-.bracket-panel { margin: 0 0 2rem; }
-.teams-title { margin-top: 1.5rem; }
-.team-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 1rem; margin-top: 1rem; }
-.team-card {
-  cursor: pointer;
-  animation: card-rise 0.35s var(--ease-soft) both;
-  animation-delay: calc(min(var(--i), 10) * 45ms);
-}
-.team-card:hover { border-color: rgba(0, 113, 227, 0.24); }
-.declaration { color: var(--accent); font-style: italic; margin: 0.5rem 0; }
-.players { display: flex; gap: 0.4rem; flex-wrap: wrap; margin-top: 0.5rem; }
-.small { font-size: 0.8rem; }
-
-.poster-backdrop { padding: 1rem; }
-.poster-shell {
-  position: relative;
-  width: min(720px, 100%);
-  max-height: 92vh;
-  overflow: auto;
-  border-radius: var(--radius);
-}
-.poster-close {
-  position: absolute;
-  top: 12px;
-  right: 12px;
-  z-index: 2;
-  width: 32px;
-  height: 32px;
-  border: none;
-  border-radius: 50%;
-  cursor: pointer;
-  color: #fff;
-  font-size: 0.9rem;
-  background: rgba(0, 0, 0, 0.4);
-  backdrop-filter: blur(6px);
-  transition: background 0.15s;
-}
-.poster-close:hover { background: rgba(0, 0, 0, 0.65); }
-
-.content-swap-enter-active,
-.content-swap-leave-active {
-  transition: opacity 0.18s var(--ease-out), transform 0.2s var(--ease-out), filter 0.2s var(--ease-out);
-}
-.content-swap-enter-from {
-  opacity: 0;
-  transform: translateY(8px);
-  filter: blur(4px);
-}
-.content-swap-leave-to {
-  opacity: 0;
-  transform: translateY(-4px);
-}
-
-@keyframes card-rise {
-  from {
-    opacity: 0;
-    transform: translateY(12px);
-  }
-  to {
-    opacity: 1;
-    transform: none;
-  }
-}
-
-@keyframes lock-pop {
-  from {
-    opacity: 0;
-    transform: translateY(8px) scale(0.9);
-  }
-  to {
-    opacity: 1;
-    transform: none;
-  }
-}
-
-@media (max-width: 560px) {
-  .tournament-grid {
-    grid-template-columns: 1fr;
-    gap: 0.85rem;
-  }
-  .tournament-card {
-    padding: 1rem;
-  }
-  .tournament-main {
-    grid-template-columns: 58px 1fr;
-    gap: 0.8rem;
-  }
-  .tournament-avatar {
-    width: 58px;
-    height: 58px;
-    border-radius: 14px;
-  }
-  .tournament-copy .row {
-    align-items: flex-start;
-  }
-  .tournament-copy h3 {
-    flex: 1 1 100%;
-  }
-  .tournament-meta {
-    gap: 0.4rem;
-  }
-  .tournament-meta span {
-    width: 100%;
-    justify-content: space-between;
-  }
-  .team-grid {
-    grid-template-columns: 1fr;
-  }
-  .team-card .row h3 {
-    flex: 1 1 100%;
-  }
-  .gate {
-    padding: 2rem 1rem;
-  }
-  .bracket-panel {
-    padding-left: 0.85rem;
-    padding-right: 0.85rem;
-  }
-  .poster-backdrop {
-    align-items: center;
-  }
-  .poster-modal {
-    padding: 0.75rem;
-    max-height: 94vh;
-  }
-  .poster-head {
-    padding: 0.2rem 0.2rem 0.65rem;
-  }
-  .poster-head h2 {
-    font-size: 1.1rem;
-  }
-  .poster-image {
-    width: 100%;
-    max-height: 78vh;
-  }
-}
-
-@media (hover: hover) and (pointer: fine) {
-  .tournament-card:hover,
-  .team-card:hover {
-    transform: translateY(-3px);
-    box-shadow: var(--shadow-md);
-  }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .tournament-card,
-  .team-card,
-  .gate-icon {
-    animation: none;
-  }
-
-  .content-swap-enter-active,
-  .content-swap-leave-active {
-    transition: none;
-  }
-}
+.list-heading { display: flex; justify-content: space-between; align-items: center; gap: 1rem; margin-bottom: .9rem; }
+.list-heading h2 { font-size: 1rem; margin: 0; display: flex; align-items: center; gap: .55rem; }
+.list-heading h2 span { font-size: .72rem; background: #e0e5eb; padding: .15rem .45rem; border-radius: 4px; color: #566373; }
+.list-heading p { margin: 0; color: var(--muted); font-size: .76rem; }
+.tournament-grid { display: grid; gap: .85rem; margin: 0 0 2rem; }
+.tournament-card { display: grid; grid-template-columns: minmax(0,1fr) 200px auto; align-items: center; gap: 1.5rem; padding: 1.4rem; border: 1px solid var(--border); border-radius: 10px; background: #fff; cursor: pointer; transition: border-color .18s, background .18s; }
+.tournament-card:hover { border-color: #aab6c1; }
+.tournament-card.active { border-color: var(--primary); background: #fffcfa; }
+.tournament-main { display: grid; grid-template-columns: 74px minmax(0,1fr); gap: 1rem; align-items: center; }
+.tournament-avatar { width: 74px; height: 74px; border-radius: 8px; object-fit: cover; }
+.tournament-copy { min-width: 0; }
+.tournament-copy h3 { margin: 0; font-size: 1.08rem; }
+.tournament-copy .spacer { display: none; }
+.tournament-copy p { margin: .5rem 0 0; font-size: .8rem; line-height: 1.6; }
+.tournament-meta { display: flex; flex-direction: column; gap: .4rem; font-size: .73rem; color: var(--muted); padding-left: 1.5rem; border-left: 1px solid var(--border); }
+.tournament-meta strong { color: var(--text); font-weight: 600; }
+.tournament-meta span:first-child strong { font-size: 1.15rem; margin-right: .25rem; }
+.card-actions { display: flex; gap: .5rem; }
+.card-actions .btn { min-height: 39px; padding: .6rem .75rem; font-size: .76rem; }
+.tour-state { display: inline-flex; align-items: center; font-size: .68rem; line-height: 1.5; padding: .15rem .45rem; border-radius: 4px; font-weight: 600; white-space: nowrap; }
+.tour-state.live { background: #fff0d9; color: #87510a; }
+.tour-state.done { background: #e5f3eb; color: #187447; }
+.gate { text-align: center; padding: 2.7rem 1.5rem; background: #e8edf2; border: 0; }
+.gate-icon { width: 62px; height: 62px; background: #fff; color: #596e82; display: grid; place-items: center; border-radius: 12px; margin: 0 auto 1rem; }
+.gate h2 { font-size: 1.25rem; }
+.gate p { max-width: 65ch; margin: .6rem auto 0; font-size: .85rem; line-height: 1.9; }
+.login-hint { text-align: center; font-size: .82rem; margin: 1.4rem 0; }
+.bracket-panel { margin: 0 0 2rem; padding: 1.7rem; }
+.bracket-panel > h2 { padding-bottom: 1.1rem; border-bottom: 1px solid var(--border); font-size: 1.2rem; margin-bottom: 1.5rem; }
+.teams-title { margin: 1.8rem 0 1rem; font-size: 1.2rem; }
+.teams-title .muted { font-weight: 400; font-size: .8rem; }
+.team-grid { display: grid; grid-template-columns: repeat(auto-fill,minmax(280px,1fr)); gap: 1rem; }
+.team-card { cursor: pointer; }
+.team-card:hover { border-color: var(--primary); }
+.team-card h3 { font-size: 1rem; }
+.declaration { color: #8b531c; font-size: .84rem; margin: .75rem 0; overflow-wrap: anywhere; }
+.players { display: flex; gap: .4rem; flex-wrap: wrap; margin-top: .85rem; }
+.small { font-size: .77rem; }
+.type-chip { background: #eef1f5; font-size: .68rem; }
+.poster-shell { position: relative; width: min(790px,100%); max-height: 90dvh; overflow: auto; border-radius: 12px; }
+.poster-close { position: sticky; top: 12px; float: right; margin: 12px 12px -56px 0; z-index: 2; width: 40px; height: 40px; border: 1px solid #ffffff60; border-radius: 7px; cursor: pointer; color: #fff; background: #172330; font-size: .9rem; }
+.poster-close:hover { background: #33495c; }
+.content-swap-enter-active, .content-swap-leave-active { transition: opacity .16s; }
+.content-swap-enter-from, .content-swap-leave-to { opacity: 0; }
+@media(max-width:1050px) { .tournament-card { grid-template-columns: minmax(0,1fr) 180px; gap: 1rem; } .card-actions { grid-column: 1/-1; padding-top: .9rem; border-top: 1px solid var(--border); justify-content: flex-end; } }
+@media(max-width:620px) { .tournament-card { display: flex; flex-direction: column; align-items: stretch; padding: 1.1rem; gap: 1rem; } .tournament-main { grid-template-columns: 60px minmax(0,1fr); gap: .8rem; } .tournament-avatar { width: 60px; height: 60px; } .tournament-copy h3 { font-size: .98rem; } .tournament-meta { border: 0; padding: 0; flex-direction: row; flex-wrap: wrap; gap: .5rem 1.2rem; align-items: center; } .tournament-meta span:first-child strong { font-size: .9rem; } .card-actions { padding-top: .85rem; } .card-actions .btn { flex: 1; min-height: 42px; } .team-grid { grid-template-columns: 1fr; } .gate { padding: 2rem 1.2rem; } .gate h2 { font-size: 1.15rem; } .gate p { font-size: .8rem; } .bracket-panel { padding: 1.1rem; } .list-heading p { font-size: .68rem; } }
 </style>

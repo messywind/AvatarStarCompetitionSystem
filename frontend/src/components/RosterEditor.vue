@@ -1,6 +1,7 @@
 <script setup>
 import { computed } from 'vue'
 import { PROFESSIONS, MAX_SUBSTITUTES, validateRoster } from '../roster'
+import { professionImage } from '../gameAssets'
 
 const props = defineProps({
   modelValue: { type: Array, required: true }, // array of players
@@ -44,7 +45,7 @@ function removePlayer(target) {
           class="chip"
           :class="{ bad: validation.counts[prof] === 0 || validation.counts[prof] > 2 }"
         >
-          <span class="dot" :style="{ background: `var(--prof-${prof})` }"></span>
+          <img :src="professionImage[prof]" alt="" class="prof-avatar" />
           {{ prof }} · {{ validation.counts[prof] }}
         </span>
       </div>
@@ -58,8 +59,9 @@ function removePlayer(target) {
     <div v-if="!formal.length" class="muted empty">尚未添加正式队员</div>
     <div v-for="(p, i) in players" :key="'f' + i">
       <div v-if="!p.is_substitute" class="player-row">
-        <input v-model="p.nickname" placeholder="选手称呼" class="pl-name" />
-        <select v-model="p.profession" class="pl-prof">
+        <span class="player-slot">{{ i + 1 }}</span>
+        <input v-model="p.nickname" :aria-label="`正式队员 ${i + 1} 称呼`" placeholder="选手称呼" class="pl-name" />
+        <select v-model="p.profession" :aria-label="`队员 ${i + 1} 职业`" class="pl-prof">
           <option v-for="prof in professions" :key="prof" :value="prof">{{ prof }}</option>
         </select>
         <button type="button" class="btn danger sm" @click="removePlayer(p)">移除</button>
@@ -80,8 +82,9 @@ function removePlayer(target) {
     </div>
     <div v-for="(p, i) in players" :key="'s' + i">
       <div v-if="p.is_substitute" class="player-row">
-        <input v-model="p.nickname" placeholder="替补称呼" class="pl-name" />
-        <select v-model="p.profession" class="pl-prof">
+        <span class="player-slot">替</span>
+        <input v-model="p.nickname" :aria-label="`替补队员 ${i + 1} 称呼`" placeholder="替补称呼" class="pl-name" />
+        <select v-model="p.profession" :aria-label="`队员 ${i + 1} 职业`" class="pl-prof">
           <option v-for="prof in professions" :key="prof" :value="prof">{{ prof }}</option>
         </select>
         <button type="button" class="btn danger sm" @click="removePlayer(p)">移除</button>
@@ -97,98 +100,26 @@ function removePlayer(target) {
 </template>
 
 <style scoped>
-.summary {
-  background: rgba(43, 108, 255, 0.1);
-  border: 1px solid var(--border);
-  border-radius: 12px;
-  padding: 0.8rem 1rem;
-  margin-bottom: 1rem;
-  transition: border-color 0.18s var(--ease-out), background 0.18s var(--ease-out);
-}
-.summary-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.6rem; }
-.count { font-weight: 800; color: var(--danger); }
+.summary { background: #edf1f5; border-radius: 8px; padding: 1rem; margin-bottom: 1rem; }
+.summary-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: .8rem; font-size: .83rem; }
+.count { font-weight: 750; color: var(--danger); font-variant-numeric: tabular-nums; }
 .count.ok { color: var(--success); }
-.prof-counts { display: flex; gap: 0.5rem; flex-wrap: wrap; }
-.chip.bad { border-color: var(--danger); color: var(--danger); }
-
-.group-label {
-  display: flex; align-items: center; gap: 0.6rem;
-  font-weight: 700; margin: 1rem 0 0.5rem;
-}
-.group-label.sub { color: var(--muted); }
-.group-label button { margin-left: auto; }
-.empty { padding: 0.5rem 0; }
-
-.player-row {
-  display: flex;
-  gap: 0.5rem;
-  margin-bottom: 0.5rem;
-  align-items: center;
-  animation: row-in 0.22s var(--ease-soft) both;
-}
-.pl-name { flex: 1; }
-.pl-prof { width: 120px; flex: none; }
-
-.err-list { margin: 0.8rem 0 0; padding-left: 1.1rem; color: var(--danger); font-size: 0.85rem; line-height: 1.7; }
-
-@keyframes row-in {
-  from {
-    opacity: 0;
-    transform: translateY(6px);
-  }
-  to {
-    opacity: 1;
-    transform: none;
-  }
-}
-
-@media (max-width: 620px) {
-  .summary {
-    padding: 0.85rem;
-  }
-  .summary-head {
-    align-items: flex-start;
-    gap: 0.75rem;
-  }
-  .prof-counts {
-    gap: 0.4rem;
-  }
-  .group-label {
-    flex-wrap: wrap;
-    align-items: flex-start;
-  }
-  .group-label button {
-    width: 100%;
-    margin-left: 0;
-  }
-  .player-row {
-    display: grid;
-    grid-template-columns: 1fr 112px;
-    gap: 0.5rem;
-    padding: 0.65rem;
-    border: 1px solid var(--border);
-    border-radius: var(--radius-sm);
-    background: #fff;
-  }
-  .pl-name,
-  .pl-prof {
-    width: 100%;
-  }
-  .player-row .btn {
-    grid-column: 1 / -1;
-    width: 100%;
-  }
-}
-
-@media (max-width: 390px) {
-  .player-row {
-    grid-template-columns: 1fr;
-  }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .player-row {
-    animation: none;
-  }
-}
+.prof-counts { display: flex; gap: .4rem; flex-wrap: wrap; }
+.prof-counts .chip { background: #fff; border: 0; padding: .15rem .5rem .15rem .25rem; gap: .3rem; font-size: .74rem; }
+.prof-avatar { width: 23px; height: 28px; object-fit: contain; }
+.chip.bad { background: #ffedf0; color: var(--danger); }
+.group-label { display: flex; align-items: center; flex-wrap: wrap; gap: .6rem; font-size: .82rem; font-weight: 650; margin: 1.2rem 0 .8rem; }
+.group-label.sub { color: var(--muted); border-top: 1px solid var(--border); padding-top: 1.1rem; }
+.group-label button { margin-left: auto; font-size: .7rem; }
+.group-label .btn:not(.ghost) { background: var(--accent-soft); color: var(--primary); }
+.empty { padding: .6rem 0; font-size: .8rem; }
+.player-row { display: flex; align-items: center; gap: .5rem; margin-bottom: .65rem; }
+.player-slot { width: 24px; color: #5d6f81; font-weight: 650; font-size: .8rem; text-align: center; flex: none; }
+.pl-name { flex: 1; min-width: 0; }
+.pl-prof { width: 96px; flex: none; }
+.player-row .btn { background: #fff; color: var(--danger); border-color: var(--border); font-size: .72rem; padding: .4rem .55rem; }
+.player-row .btn:hover { background: #ffedf0; border-color: #e7b0b7; }
+.err-list { margin: 1rem 0 0; padding: .8rem .9rem .8rem 1.9rem; border-radius: 7px; color: var(--danger); background: #fff1f2; font-size: .77rem; line-height: 1.8; }
+.success-text { margin: 1rem 0 0; padding: .7rem 1rem; border-radius: 7px; background: #eaf6ef; font-size: .8rem; }
+@media(max-width:620px) { .summary { padding: .85rem; } .player-row { display: grid; grid-template-columns: 20px minmax(0,1fr) 78px; gap: .4rem; padding-bottom: .6rem; border-bottom: 1px solid var(--border); } .pl-prof { width: 100%; padding-left: .4rem; padding-right: .2rem; } .player-row .btn { grid-column: 2/-1; min-height: 32px; justify-self: end; } .group-label button { margin-left: auto; } .prof-counts { gap: .3rem; } }
 </style>

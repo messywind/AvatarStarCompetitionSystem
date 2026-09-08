@@ -1,0 +1,8 @@
+.competition-poster { width: 100%; color: var(--text); background: #fff; border-radius: 12px; overflow: hidden; }
+.competition-poster .poster-hero, .competition-poster .announce-hero { position: relative; isolation: isolate; padding: 2.2rem 3.5rem 2rem; background-size: cover; background-position: center; text-align: center; }
+.competition-poster .hero-mask { position: absolute; inset: 0; z-index: -1; background: linear-gradient(180deg,#172330b8,#172330ed); }
+.competition-poster .hero-logo { display: block; height: 58px; width: auto; margin: 0 auto 1rem; }
+.competition-poster .hero-name { color: #fff; font-size: 1.8rem; font-weight: 800; margin: 0; line-height: 1.4; }
+.competition-poster .hero-desc { color: #c8d4df; font-size: .84rem; margin: .8rem auto 0; max-width: 60ch; }
+.competition-poster .poster-empty, .competition-poster .announce-empty { padding: 3.5rem 1.5rem; text-align: center; color: var(--muted); font-size: .86rem; }
+@media(max-width:600px) { .competition-poster .poster-hero,.competition-poster .announce-hero { padding: 2.5rem 1.2rem 1.5rem; } .competition-poster .hero-name { font-size: 1.4rem; } .competition-poster .hero-logo { height: 45px; } }

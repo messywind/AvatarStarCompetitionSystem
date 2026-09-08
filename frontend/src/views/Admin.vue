@@ -8,6 +8,8 @@ import RosterEditor from '../components/RosterEditor.vue'
 import Bracket from '../components/Bracket.vue'
 import Spinner from '../components/Spinner.vue'
 import { useAuthStore } from '../stores/auth'
+import PageHeading from '../components/PageHeading.vue'
+import Icon from '../components/Icon.vue'
 
 const STATUS_LABEL = { pending: '审核中', approved: '已通过', rejected: '未通过' }
 const REGISTRATION_LABEL = { team: '战队报名', solo: '个人报名' }
@@ -614,7 +616,7 @@ function generateXuanhuaTemplate() {
       ],
     },
   ]
-  toast('已生成选花杯赛制模板', 'success')
+  toast('已生成赛制模板', 'success')
 }
 
 // Normalize editor state (empty inputs become null) before persisting.
@@ -730,17 +732,14 @@ onMounted(async () => {
 </script>
 
 <template>
-  <div class="container">
+  <div class="container admin-page">
+    <PageHeading title="赛事管理中心" description="管理每一次集结，从赛事发布、报名审核，到冠军诞生。" icon="shield"><span class="admin-identity"><Icon name="user" :size="16" />{{ auth.user?.username }} · 管理员</span></PageHeading>
     <header class="page-head">
-      <div class="page-title">
-        <h1>管理端</h1>
-        <p class="page-sub">管理赛事、审核报名并配置对阵图</p>
-      </div>
-      <div class="segmented">
-        <button :class="{ active: tab === 'tournaments' }" @click="tab = 'tournaments'">赛事管理</button>
-        <button :class="{ active: tab === 'teams' }" @click="tab = 'teams'">报名管理</button>
-        <button :class="{ active: tab === 'bracket' }" @click="tab = 'bracket'">对阵图配置</button>
-        <button :class="{ active: tab === 'users' }" @click="tab = 'users'">账号管理</button>
+      <div class="segmented admin-tabs" aria-label="管理功能">
+        <button :aria-pressed="tab === 'tournaments'" :class="{ active: tab === 'tournaments' }" @click="tab = 'tournaments'"><Icon name="trophy" :size="17" />赛事管理</button>
+        <button :aria-pressed="tab === 'teams'" :class="{ active: tab === 'teams' }" @click="tab = 'teams'"><Icon name="users" :size="17" />报名管理</button>
+        <button :aria-pressed="tab === 'bracket'" :class="{ active: tab === 'bracket' }" @click="tab = 'bracket'"><Icon name="flag" :size="17" />对阵图配置</button>
+        <button :aria-pressed="tab === 'users'" :class="{ active: tab === 'users' }" @click="tab = 'users'"><Icon name="user" :size="17" />账号管理</button>
       </div>
     </header>
 
@@ -933,7 +932,7 @@ onMounted(async () => {
         <div class="row">
           <h2 style="margin: 0">对阵图配置</h2>
           <span class="spacer"></span>
-          <button class="btn ghost sm" @click="generateXuanhuaTemplate">生成选花杯模板</button>
+          <button class="btn ghost sm" @click="generateXuanhuaTemplate">生成赛制模板</button>
           <button class="btn ghost sm" @click="generateSkeleton">按已通过报名自动生成</button>
           <button class="btn ghost sm" @click="addStage">+ 添加阶段</button>
           <button class="btn sm" @click="saveBracket">保存对阵图</button>
@@ -1018,7 +1017,7 @@ onMounted(async () => {
             <h2>{{ tourEditingId ? '编辑赛事' : '新增赛事' }}</h2>
             <button class="icon-close" aria-label="关闭" @click="tourModal = false">✕</button>
           </div>
-          <div class="field"><label>赛事名称 *</label><input v-model="tourForm.name" maxlength="128" placeholder="例如：百变兵团第二届选花杯" /></div>
+          <div class="field"><label for="admin-field-1">赛事名称 *</label><input id="admin-field-1" v-model="tourForm.name" maxlength="128" placeholder="例如：百变兵团第二届赛事" /></div>
           <div class="field">
             <label>赛事头像</label>
             <div class="avatar-edit">
@@ -1032,10 +1031,10 @@ onMounted(async () => {
             </div>
             <p class="muted tiny" style="margin-top:0.35rem">显示在赛事浏览卡片上，建议正方形图片，上传时会自动压缩；不上传则使用默认头像。</p>
           </div>
-          <div class="field"><label>赛事简介</label><textarea v-model="tourForm.description" maxlength="2000" placeholder="可选"></textarea></div>
+          <div class="field"><label for="admin-field-2">赛事简介</label><textarea id="admin-field-2" v-model="tourForm.description" maxlength="2000" placeholder="可选"></textarea></div>
           <div class="field">
-            <label>报名截止时间 *</label>
-            <input v-model="tourForm.registration_deadline" type="datetime-local" />
+            <label for="admin-field-3">报名截止时间 *</label>
+            <input id="admin-field-3" v-model="tourForm.registration_deadline" type="datetime-local" />
             <p class="muted tiny" style="margin-top:0.35rem">截止后才会向所有人公开参赛名单与对阵图；截止前用户只能看到自己的报名。</p>
           </div>
           <div class="field">
@@ -1079,19 +1078,19 @@ onMounted(async () => {
           <p class="muted tiny" style="margin:0 0 0.9rem">以下内容将自动生成为比赛详情海报，用户在「比赛详情」中查看。每行一条，留空则不显示该项。</p>
 
           <h4 class="poster-group">参赛规则</h4>
-          <div class="field"><label>比赛形式</label><textarea v-model="rulesForm.format" rows="1" placeholder="例如：5v5"></textarea></div>
-          <div class="field"><label>职业限制</label><textarea v-model="rulesForm.profession_limit" placeholder="每行一条，例如：&#10;各职业不得超过两名&#10;若没有生化，可换成一个非突击职业"></textarea></div>
-          <div class="field"><label>模式限制</label><textarea v-model="rulesForm.mode_limit" placeholder="例如：预选赛模式为 占点 夺旗 团战 纯随机"></textarea></div>
-          <div class="field"><label>药物及道具限制</label><textarea v-model="rulesForm.item_limit" placeholder="每行一条"></textarea></div>
-          <div class="field"><label>装备限制</label><textarea v-model="rulesForm.equipment_limit" placeholder="每行一条"></textarea></div>
-          <div class="field"><label>其他限制</label><textarea v-model="rulesForm.other_limit" placeholder="例如：其余以赛事官方为准"></textarea></div>
+          <div class="field"><label for="admin-field-4">比赛形式</label><textarea id="admin-field-4" v-model="rulesForm.format" rows="1" placeholder="例如：5v5"></textarea></div>
+          <div class="field"><label for="admin-field-5">职业限制</label><textarea id="admin-field-5" v-model="rulesForm.profession_limit" placeholder="每行一条，例如：&#10;各职业不得超过两名&#10;若没有生化，可换成一个非突击职业"></textarea></div>
+          <div class="field"><label for="admin-field-6">模式限制</label><textarea id="admin-field-6" v-model="rulesForm.mode_limit" placeholder="例如：预选赛模式为 占点 夺旗 团战 纯随机"></textarea></div>
+          <div class="field"><label for="admin-field-7">药物及道具限制</label><textarea id="admin-field-7" v-model="rulesForm.item_limit" placeholder="每行一条"></textarea></div>
+          <div class="field"><label for="admin-field-8">装备限制</label><textarea id="admin-field-8" v-model="rulesForm.equipment_limit" placeholder="每行一条"></textarea></div>
+          <div class="field"><label for="admin-field-9">其他限制</label><textarea id="admin-field-9" v-model="rulesForm.other_limit" placeholder="例如：其余以赛事官方为准"></textarea></div>
 
           <h4 class="poster-group">官方奖励</h4>
-          <div class="field"><label>冠军奖励</label><textarea v-model="rulesForm.reward_champion" rows="2" placeholder="例如：三把 ROG 夜魔键盘 价值 5000 元（队伍自行分配）"></textarea></div>
-          <div class="field"><label>亚军奖励</label><textarea v-model="rulesForm.reward_runner_up" rows="2" placeholder="例如：三把龙鳞 2 鼠标 价值 3000 元"></textarea></div>
-          <div class="field"><label>季军奖励</label><textarea v-model="rulesForm.reward_third" rows="2" placeholder="例如：每人 1500 兑换卷"></textarea></div>
-          <div class="field"><label>殿军奖励</label><textarea v-model="rulesForm.reward_fourth" rows="2" placeholder="例如：每人 500 兑换卷"></textarea></div>
-          <div class="field"><label>其他奖励</label><textarea v-model="rulesForm.reward_other" rows="2" placeholder="例如：更有众多参与奖神秘奖等待抽选"></textarea></div>
+          <div class="field"><label for="admin-field-10">冠军奖励</label><textarea id="admin-field-10" v-model="rulesForm.reward_champion" rows="2" placeholder="例如：三把 ROG 夜魔键盘 价值 5000 元（队伍自行分配）"></textarea></div>
+          <div class="field"><label for="admin-field-11">亚军奖励</label><textarea id="admin-field-11" v-model="rulesForm.reward_runner_up" rows="2" placeholder="例如：三把龙鳞 2 鼠标 价值 3000 元"></textarea></div>
+          <div class="field"><label for="admin-field-12">季军奖励</label><textarea id="admin-field-12" v-model="rulesForm.reward_third" rows="2" placeholder="例如：每人 1500 兑换卷"></textarea></div>
+          <div class="field"><label for="admin-field-13">殿军奖励</label><textarea id="admin-field-13" v-model="rulesForm.reward_fourth" rows="2" placeholder="例如：每人 500 兑换卷"></textarea></div>
+          <div class="field"><label for="admin-field-14">其他奖励</label><textarea id="admin-field-14" v-model="rulesForm.reward_other" rows="2" placeholder="例如：更有众多参与奖神秘奖等待抽选"></textarea></div>
 
           <button class="btn modal-submit" @click="saveRules">保存规则</button>
         </div>
@@ -1109,8 +1108,8 @@ onMounted(async () => {
           <p class="muted tiny" style="margin:0 0 0.9rem">以下内容将自动生成为参赛公告海报，用户在「比赛公告」中查看。</p>
 
           <div class="field">
-            <label>公告内容</label>
-            <textarea
+            <label for="admin-field-15">公告内容</label>
+            <textarea id="admin-field-15"
               v-model="announceForm.announcement"
               rows="8"
               placeholder="每行一条，用 **文字** 高亮重点，例如：&#10;本活动绝对**公平免费**&#10;面向**全服玩家**，欢迎大家踊跃报名&#10;**单人**也可以报名&#10;满**16支队伍**开赛"
@@ -1118,8 +1117,8 @@ onMounted(async () => {
             <p class="muted tiny" style="margin-top:0.35rem">每行生成一条带序号的公告；两个星号包裹的文字会以金色高亮显示。</p>
           </div>
           <div class="field">
-            <label>底部标语</label>
-            <input v-model="announceForm.announcement_footer" maxlength="200" placeholder="例如：快来组队参赛，赢取丰厚奖励！" />
+            <label for="admin-field-16">底部标语</label>
+            <input id="admin-field-16" v-model="announceForm.announcement_footer" maxlength="200" placeholder="例如：快来组队参赛，赢取丰厚奖励！" />
             <p class="muted tiny" style="margin-top:0.35rem">显示在公告底部的金色横幅，留空则不显示。</p>
           </div>
 
@@ -1137,17 +1136,17 @@ onMounted(async () => {
             <button class="icon-close" aria-label="关闭" @click="userModal = false">✕</button>
           </div>
           <div class="field">
-            <label>用户名 *</label>
-            <input v-model="userForm.username" maxlength="64" placeholder="至少 3 个字符" autocomplete="off" />
+            <label for="admin-field-17">用户名 *</label>
+            <input id="admin-field-17" v-model="userForm.username" maxlength="64" placeholder="至少 3 个字符" autocomplete="off" />
           </div>
           <div class="field">
-            <label>初始密码 *</label>
-            <input v-model="userForm.password" type="password" maxlength="128" placeholder="至少 6 位" autocomplete="new-password" />
+            <label for="admin-field-18">初始密码 *</label>
+            <input id="admin-field-18" v-model="userForm.password" type="password" maxlength="128" placeholder="至少 6 位" autocomplete="new-password" />
             <p class="muted tiny" style="margin-top:0.35rem">请将初始密码告知对方，登录后可在「账号设置」中自行修改。</p>
           </div>
           <div class="field">
-            <label>角色</label>
-            <select v-model="userForm.role">
+            <label for="admin-field-19">角色</label>
+            <select id="admin-field-19" v-model="userForm.role">
               <option value="admin">管理员</option>
               <option value="user">普通用户</option>
             </select>
@@ -1187,28 +1186,28 @@ onMounted(async () => {
           </div>
           <p class="muted">录入到「{{ selectedTournament?.name }}」；可直接指定初始审核状态。</p>
           <div class="field">
-            <label>报名类型</label>
-            <select v-model="createForm.registration_type" class="status-select">
+            <label for="admin-field-20">报名类型</label>
+            <select id="admin-field-20" v-model="createForm.registration_type" class="status-select">
               <option v-for="rt in scopeAllowedTypes" :key="rt" :value="rt">{{ REGISTRATION_LABEL[rt] }}</option>
             </select>
           </div>
           <template v-if="!createIsSolo">
-            <div class="field"><label>队伍名称 *</label><input v-model="createForm.name" maxlength="128" placeholder="例如：烈焰星辰" /></div>
-            <div class="field"><label>队长 *</label><input v-model="createForm.captain" maxlength="64" placeholder="队长称呼" /></div>
+            <div class="field"><label for="admin-field-21">队伍名称 *</label><input id="admin-field-21" v-model="createForm.name" maxlength="128" placeholder="例如：烈焰星辰" /></div>
+            <div class="field"><label for="admin-field-22">队长 *</label><input id="admin-field-22" v-model="createForm.captain" maxlength="64" placeholder="队长称呼" /></div>
           </template>
           <template v-else>
-            <div class="field"><label>称呼 *</label><input v-model="createForm.players[0].nickname" maxlength="64" placeholder="个人报名称呼" /></div>
+            <div class="field"><label for="admin-field-23">称呼 *</label><input id="admin-field-23" v-model="createForm.players[0].nickname" maxlength="64" placeholder="个人报名称呼" /></div>
             <div class="field">
-              <label>职业 *</label>
-              <select v-model="createForm.players[0].profession" class="status-select">
+              <label for="admin-field-24">职业 *</label>
+              <select id="admin-field-24" v-model="createForm.players[0].profession" class="status-select">
                 <option v-for="prof in scopeAllowedProfessions" :key="prof" :value="prof">{{ prof }}</option>
               </select>
             </div>
           </template>
-          <div class="field"><label>联系方式 *</label><input v-model="createForm.contact" maxlength="128" placeholder="QQ / 微信 / 手机号" /></div>
+          <div class="field"><label for="admin-field-25">联系方式 *</label><input id="admin-field-25" v-model="createForm.contact" maxlength="128" placeholder="QQ / 微信 / 手机号" /></div>
           <div class="field">
-            <label>初始状态</label>
-            <select v-model="createForm.status" class="status-select">
+            <label for="admin-field-26">初始状态</label>
+            <select id="admin-field-26" v-model="createForm.status" class="status-select">
               <option value="approved">已通过</option>
               <option value="pending">审核中</option>
               <option value="rejected">未通过</option>
@@ -1218,7 +1217,7 @@ onMounted(async () => {
             <h4>参赛阵容 *</h4>
             <RosterEditor v-model="createForm.players" :professions="scopeAllowedProfessions" />
           </template>
-          <div class="field" style="margin-top: 1rem"><label>作战宣言</label><textarea v-model="createForm.declaration" maxlength="2000"></textarea></div>
+          <div class="field" style="margin-top: 1rem"><label for="admin-field-27">作战宣言</label><textarea id="admin-field-27" v-model="createForm.declaration" maxlength="2000"></textarea></div>
           <button class="btn modal-submit" :disabled="!canCreate" @click="saveCreate">
             新增报名
           </button>
@@ -1238,28 +1237,28 @@ onMounted(async () => {
             <button class="icon-close" aria-label="关闭" @click="editing = null">✕</button>
           </div>
           <div class="field">
-            <label>报名类型</label>
-            <select v-model="editForm.registration_type" class="status-select">
+            <label for="admin-field-28">报名类型</label>
+            <select id="admin-field-28" v-model="editForm.registration_type" class="status-select">
               <option v-for="rt in scopeAllowedTypes" :key="rt" :value="rt">{{ REGISTRATION_LABEL[rt] }}</option>
             </select>
           </div>
           <template v-if="!editIsSolo">
-            <div class="field"><label>队伍名称</label><input v-model="editForm.name" /></div>
-            <div class="field"><label>队长</label><input v-model="editForm.captain" /></div>
+            <div class="field"><label for="admin-field-29">队伍名称</label><input id="admin-field-29" v-model="editForm.name" /></div>
+            <div class="field"><label for="admin-field-30">队长</label><input id="admin-field-30" v-model="editForm.captain" /></div>
             <h4>参赛阵容</h4>
             <RosterEditor v-model="editForm.players" :professions="scopeAllowedProfessions" />
           </template>
           <template v-else>
-            <div class="field"><label>称呼</label><input v-model="editForm.players[0].nickname" /></div>
+            <div class="field"><label for="admin-field-31">称呼</label><input id="admin-field-31" v-model="editForm.players[0].nickname" /></div>
             <div class="field">
-              <label>职业</label>
-              <select v-model="editForm.players[0].profession" class="status-select">
+              <label for="admin-field-32">职业</label>
+              <select id="admin-field-32" v-model="editForm.players[0].profession" class="status-select">
                 <option v-for="prof in scopeAllowedProfessions" :key="prof" :value="prof">{{ prof }}</option>
               </select>
             </div>
           </template>
-          <div class="field"><label>联系方式</label><input v-model="editForm.contact" maxlength="128" /></div>
-          <div class="field" style="margin-top: 1rem"><label>作战宣言</label><textarea v-model="editForm.declaration"></textarea></div>
+          <div class="field"><label for="admin-field-33">联系方式</label><input id="admin-field-33" v-model="editForm.contact" maxlength="128" /></div>
+          <div class="field" style="margin-top: 1rem"><label for="admin-field-34">作战宣言</label><textarea id="admin-field-34" v-model="editForm.declaration"></textarea></div>
           <button class="btn modal-submit" :disabled="!editIsSolo && editValidation.errors.length > 0" @click="saveEdit">
             保存修改
           </button>
@@ -1270,321 +1269,67 @@ onMounted(async () => {
 </template>
 
 <style scoped>
-/* ---- Page head ---- */
-.page-head {
-  display: flex;
-  align-items: flex-end;
-  justify-content: space-between;
-  gap: 1rem;
-  flex-wrap: wrap;
-  margin-bottom: 0.6rem;
-}
-.page-title h1 { margin: 0; }
-.page-sub {
-  margin: 0.3rem 0 0;
-  color: var(--muted);
-  font-size: 0.92rem;
-}
-
-/* ---- Scope bar ---- */
-.scope-bar {
-  margin: 1.4rem 0 0.6rem;
-  padding: 0.8rem 1rem;
-  background: var(--bg-2);
-  border-radius: 14px;
-}
-.scope-label {
-  color: var(--muted);
-  font-size: 0.85rem;
-  font-weight: 500;
-}
+.admin-page { max-width: 1370px; }
+.admin-identity { display: inline-flex; align-items: center; gap: .4rem; color: #5d6c7c; font-size: .8rem; }
+.page-head { margin-bottom: 1.5rem; }
+.admin-tabs { display: flex; gap: .4rem; width: 100%; border-radius: 9px; background: #fff; border: 1px solid var(--border); padding: .5rem; }
+.admin-tabs button { display: inline-flex; align-items: center; justify-content: center; gap: .6rem; padding: .75rem 1.5rem; }
+.scope-bar { padding: 1rem 1.2rem; margin: 1rem 0; border-radius: 8px; background: #e7edf2; }
+.scope-label { color: #4f6375; font-size: .83rem; font-weight: 600; }
 .scope-select { width: 280px; background: #fff; }
-
-/* ---- Toolbars & table bits ---- */
-.toolbar { margin: 1.2rem 0 1rem; }
-.prof-mini { display: flex; gap: 0.3rem; margin-bottom: 0.2rem; }
-.chip.sm { font-size: 0.72rem; padding: 0.1rem 0.4rem; }
-.tiny { font-size: 0.72rem; }
-.small { font-size: 0.8rem; }
-.declaration-cell { max-width: 220px; color: var(--muted); }
-td strong {
-  display: inline-block;
-  max-width: 14em;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  vertical-align: bottom;
-}
-.actions { display: flex; gap: 0.35rem; flex-wrap: wrap; min-width: 136px; }
-
-/* ---- Bracket editor ---- */
-.bracket-hint { font-size: 0.88rem; }
-.editor-stage { margin-top: 1rem; animation: editor-round-in 0.3s var(--ease-soft) both; }
-.editor-stage + .editor-stage { margin-top: 1.2rem; }
+.toolbar { margin: 1.3rem 0 1rem; font-size: .83rem; }
+.prof-mini { display: flex; gap: .3rem; margin-bottom: .3rem; }
+.chip.sm { font-size: .69rem; padding: .12rem .4rem; }
+.tiny { font-size: .73rem; }
+.small { font-size: .79rem; }
+.declaration-cell { max-width: 220px; color: var(--muted); overflow-wrap: anywhere; }
+td strong { display: inline-block; max-width: 18em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; vertical-align: bottom; }
+.actions { display: flex; gap: .4rem; flex-wrap: wrap; min-width: 140px; }
+.bracket-hint { font-size: .83rem; margin: 1rem 0 1.5rem; }
+.editor-stage { margin-top: 1.5rem; padding: 1.3rem 0 0; border: 0; border-top: 1px solid var(--border); border-radius: 0; background: transparent; }
 .stage-row { flex-wrap: wrap; }
-.stage-name-input { width: 200px; font-weight: 700; }
-.stage-type-sel { width: 170px; background: #fff; }
-.adv-label { display: inline-flex; align-items: center; gap: 0.35rem; white-space: nowrap; }
-.adv-input { width: 64px; background: #fff; }
-.note-input { width: 100%; margin-top: 0.6rem; font-size: 0.82rem; background: #fff; }
-.editor-rounds { display: flex; gap: 1rem; overflow-x: auto; padding: 1rem 0; align-items: flex-start; scroll-snap-type: x proximity; -webkit-overflow-scrolling: touch; }
-.editor-round { min-width: 300px; scroll-snap-align: start; animation: editor-round-in 0.3s var(--ease-soft) both; }
-.editor-round .note-input { margin-top: 0.5rem; }
+.stage-name-input { width: 210px; font-weight: 700; }
+.stage-type-sel { width: 170px; }
+.adv-label { display: inline-flex; align-items: center; gap: .4rem; white-space: nowrap; }
+.adv-input { width: 64px; }
+.note-input { width: 100%; margin-top: .65rem; font-size: .8rem; background: #f9fafb; }
+.editor-rounds { display: flex; gap: 1.3rem; overflow-x: auto; padding: 1rem 0; align-items: flex-start; -webkit-overflow-scrolling: touch; }
+.editor-round { min-width: 320px; width: 360px; flex: none; background: transparent; border: 0; border-radius: 0; padding: 0 1.3rem 0 0; border-right: 1px solid var(--border); }
+.editor-round:last-child { border-right: 0; }
+.editor-round .note-input { margin-top: .5rem; }
 .round-name { width: 140px; font-weight: 600; }
-.score-input { width: 58px; text-align: center; background: #fff; }
-.editor-match {
-  background: var(--bg-2);
-  border-radius: 12px;
-  padding: 0.7rem;
-  margin-top: 0.7rem;
-}
-.editor-match select { background: #fff; }
-.mrow { display: flex; align-items: center; gap: 0.4rem; margin-bottom: 0.4rem; }
+.score-input { width: 56px; text-align: center; padding-inline: .25rem; font-variant-numeric: tabular-nums; }
+.editor-match { background: #eef2f6; border-radius: 7px; padding: .75rem; margin-top: .8rem; }
+.mrow { display: flex; align-items: center; gap: .4rem; margin-bottom: .5rem; }
 .mrow:last-child { margin-bottom: 0; }
-.vs {
-  color: var(--muted);
-  font-weight: 700;
-  font-size: 0.7rem;
-  letter-spacing: 0.04em;
-  flex: 0 0 auto;
-}
+.vs { color: #5c6d7e; font-weight: 750; font-size: .65rem; flex: none; }
 .winner-sel { width: 130px; }
-
-/* ---- Modals ---- */
-.tour-modal { width: min(560px, 100%); }
-
-.confirm-modal { width: min(420px, 100%); }
-
-.role-badge {
-  display: inline-block;
-  padding: 2px 10px;
-  border-radius: 999px;
-  font-size: 0.78rem;
-  font-weight: 700;
-  background: rgba(0, 0, 0, 0.06);
-  color: var(--muted);
-}
-.role-badge.admin {
-  background: rgba(0, 113, 227, 0.12);
-  color: var(--primary);
-}
-.confirm-message { margin: 0 0 1rem; line-height: 1.7; color: var(--text); }
-.confirm-actions {
-  display: flex;
-  justify-content: flex-end;
-  gap: 0.6rem;
-  margin-top: 1.1rem;
-}
+.tour-modal { width: min(600px,100%); }
+.confirm-modal { width: min(440px,100%); }
+.role-badge { display: inline-block; padding: .2rem .55rem; border-radius: 4px; font-size: .73rem; font-weight: 600; background: #edf1f5; color: #536779; }
+.role-badge.admin { background: var(--accent-soft); color: var(--primary); }
+.confirm-message { margin: 0 0 1.2rem; line-height: 1.8; }
+.confirm-actions { display: flex; justify-content: flex-end; gap: .6rem; margin-top: 1.3rem; }
 .confirm-actions .btn { min-width: 88px; }
-.modal-head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 0.8rem;
-  margin-bottom: 1.2rem;
-}
-.modal-head h2 { margin: 0; font-size: 1.35rem; }
-.modal-title-group { display: flex; align-items: center; gap: 0.6rem; flex-wrap: wrap; min-width: 0; }
-.icon-close {
-  flex: 0 0 auto;
-  width: 32px;
-  height: 32px;
-  border: none;
-  border-radius: 50%;
-  background: rgba(0, 0, 0, 0.06);
-  color: var(--muted);
-  font-size: 0.85rem;
-  line-height: 1;
-  cursor: pointer;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  transition: background 0.15s var(--ease-out), color 0.15s var(--ease-out), transform 0.15s var(--ease-out);
-}
-.icon-close:hover { background: rgba(0, 0, 0, 0.1); color: var(--text); }
-.icon-close:active { transform: scale(0.94); }
-.icon-close:focus-visible { outline: none; box-shadow: 0 0 0 3px rgba(0, 113, 227, 0.22); }
-.modal-submit { width: 100%; margin-top: 0.4rem; min-height: 46px; font-size: 1rem; }
-/* ---- Tournament avatar upload ---- */
-.avatar-edit {
-  display: flex;
-  align-items: center;
-  gap: 0.8rem;
-}
-.avatar-preview {
-  width: 64px;
-  height: 64px;
-  border-radius: 16px;
-  object-fit: cover;
-  border: 1px solid var(--border);
-  flex: none;
-}
-.avatar-empty {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: var(--muted);
-  font-size: 0.72rem;
-  background: var(--bg-2);
-}
-.avatar-btns {
-  display: flex;
-  gap: 0.4rem;
-  flex-wrap: wrap;
-}
-.avatar-file {
-  display: none;
-}
-
-/* ---- Tournament rules checkboxes ---- */
-.check-row {
-  display: flex;
-  gap: 1rem;
-  flex-wrap: wrap;
-}
-.check-item {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.4rem;
-  font-size: 0.9rem;
-  cursor: pointer;
-  user-select: none;
-}
-.check-item input[type='checkbox'] {
-  width: auto;
-  margin: 0;
-  accent-color: var(--primary);
-}
-
-.poster-group {
-  margin: 1.6rem 0 0.8rem;
-  padding-top: 1.1rem;
-  border-top: 1px solid var(--border);
-  font-size: 0.82rem;
-  font-weight: 600;
-  color: var(--muted);
-  letter-spacing: 0.03em;
-}
+.modal-head { display: flex; align-items: center; justify-content: space-between; gap: .8rem; margin-bottom: 1.5rem; padding-bottom: 1rem; border-bottom: 1px solid var(--border); }
+.modal-head h2 { margin: 0; font-size: 1.3rem; }
+.modal-title-group { display: flex; align-items: center; gap: .6rem; flex-wrap: wrap; min-width: 0; }
+.icon-close { flex: none; width: 36px; height: 36px; border: 1px solid var(--border); border-radius: 6px; background: #f4f6f8; color: var(--muted); font-size: .85rem; line-height: 1; cursor: pointer; display: grid; place-items: center; transition: background .18s; }
+.icon-close:hover { background: #e7ecf1; color: var(--text); }
+.modal-submit { width: 100%; margin-top: .6rem; min-height: 46px; }
+.avatar-edit { display: flex; align-items: center; gap: 1rem; }
+.avatar-preview { width: 70px; height: 70px; border-radius: 8px; object-fit: cover; border: 1px solid var(--border); flex: none; }
+.avatar-empty { display: grid; place-items: center; color: var(--muted); font-size: .75rem; background: var(--bg-2); }
+.avatar-btns { display: flex; gap: .4rem; flex-wrap: wrap; }
+.avatar-file { display: none; }
+.check-row { display: flex; gap: .8rem 1.2rem; flex-wrap: wrap; }
+.check-item { display: inline-flex; align-items: center; gap: .5rem; font-size: .86rem; cursor: pointer; user-select: none; min-height: 30px; }
+.check-item input[type=checkbox] { width: 17px; margin: 0; }
+.check-item .dot { width: 7px; height: 7px; border-radius: 50%; }
+.poster-group { margin: 1.5rem 0 1rem; padding-top: 1rem; border-top: 1px solid var(--border); font-size: .9rem; color: var(--primary); }
 .status-select { width: 200px; }
-
-/* Tab switch transition */
-.tab-swap-enter-active {
-  transition: opacity 0.2s var(--ease-out), transform 0.24s var(--ease-soft);
-}
-.tab-swap-leave-active {
-  transition: opacity 0.13s var(--ease-out), transform 0.13s var(--ease-out);
-}
-.tab-swap-enter-from {
-  opacity: 0;
-  transform: translateY(8px);
-}
-.tab-swap-leave-to {
-  opacity: 0;
-  transform: translateY(-5px);
-}
-
-@keyframes editor-round-in {
-  from {
-    opacity: 0;
-    transform: translateY(8px);
-  }
-  to {
-    opacity: 1;
-    transform: none;
-  }
-}
-
-@media (max-width: 760px) {
-  .page-head {
-    align-items: stretch;
-    flex-direction: column;
-  }
-  .segmented {
-    width: 100%;
-    overflow-x: auto;
-    scrollbar-width: none;
-  }
-  .segmented::-webkit-scrollbar { display: none; }
-  .segmented button {
-    flex: 1 1 auto;
-  }
-  .scope-bar {
-    align-items: stretch;
-  }
-  .scope-bar .scope-label,
-  .scope-bar select {
-    width: 100% !important;
-  }
-  .toolbar {
-    align-items: stretch;
-  }
-  .toolbar label,
-  .toolbar select {
-    width: 100% !important;
-  }
-  .toolbar .btn {
-    flex: 1 1 auto;
-  }
-  .actions .btn {
-    min-width: 74px;
-  }
-  .declaration-cell {
-    min-width: 180px;
-  }
-  .editor-rounds {
-    margin-left: -0.2rem;
-    margin-right: -0.2rem;
-  }
-  .editor-round {
-    min-width: min(88vw, 340px);
-  }
-  .editor-round > .row {
-    align-items: stretch;
-  }
-  .round-name,
-  .stage-name-input,
-  .stage-type-sel {
-    width: 100%;
-  }
-  .mrow {
-    display: grid;
-    grid-template-columns: 1fr;
-    align-items: stretch;
-  }
-  .vs {
-    text-align: center;
-  }
-  .winner-sel,
-  .status-select,
-  .score-input {
-    width: 100%;
-  }
-}
-
-@media (max-width: 520px) {
-  .toolbar .spacer,
-  .scope-bar .spacer {
-    display: none;
-  }
-  .actions {
-    min-width: 160px;
-  }
-  .actions .btn {
-    flex: 1 1 72px;
-  }
-  .modal-head h2 {
-    font-size: 1.2rem;
-  }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .editor-round,
-  .editor-stage {
-    animation: none;
-  }
-  .tab-swap-enter-active,
-  .tab-swap-leave-active {
-    transition: none;
-  }
-}
+.tab-swap-enter-active, .tab-swap-leave-active { transition: opacity .15s; }
+.tab-swap-enter-from, .tab-swap-leave-to { opacity: 0; }
+@media(max-width:760px) { .admin-tabs { overflow-x: auto; gap: .15rem; scrollbar-width: none; } .admin-tabs button { flex: 1; padding: .65rem .8rem; gap: .35rem; font-size: .76rem; } .admin-tabs .ui-icon { display: none; } .scope-bar { padding: .9rem; } .scope-label,.scope-select { width: 100%; } .toolbar { align-items: stretch; } .toolbar label,.toolbar select { width: 100% !important; } .toolbar .btn { flex: 1; } .actions { min-width: 160px; } .actions .btn { min-width: 65px; flex: 1; } .declaration-cell { min-width: 160px; } .editor-round { min-width: 280px; width: 310px; } .stage-name-input,.stage-type-sel { width: 100%; } .editor-match .mrow { display: grid; grid-template-columns: minmax(0,1fr) 50px; } .editor-match .vs { grid-column: 1/-1; text-align: center; } .editor-match .mrow > select:last-child { grid-column: 1; grid-row: 3; } .score-input { width: 50px; } .winner-row { display: flex !important; flex-wrap: wrap; } .winner-sel,.status-select { width: 100%; } .editor-match .winner-sel { width: 120px; } }
+@media(max-width:380px) { .admin-tabs button { padding-inline: .55rem; font-size: .72rem; } }
 </style>

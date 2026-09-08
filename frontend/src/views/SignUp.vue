@@ -7,6 +7,9 @@ import { formatDeadline, countdown } from '../time'
 import RosterEditor from '../components/RosterEditor.vue'
 import Spinner from '../components/Spinner.vue'
 import signupGroupQrcode from '../assets/signup-group-qrcode.jpg'
+import PageHeading from '../components/PageHeading.vue'
+import Icon from '../components/Icon.vue'
+import teamBattle from '../assets/game/team-battle.webp'
 
 const STATUS_LABEL = { pending: '审核中', approved: '已通过', rejected: '未通过' }
 
@@ -34,6 +37,7 @@ const form = reactive({
 })
 const submitting = ref(false)
 const booting = ref(true)
+const bootError = ref('')
 const myTeams = ref([])
 const tournaments = ref([])
 const selectedTid = ref(null)
@@ -155,32 +159,35 @@ function professionCounts(players) {
   return c
 }
 
-onMounted(async () => {
+async function boot() {
+  booting.value = true
+  bootError.value = ''
   try {
     await Promise.all([loadTournaments(), loadMine()])
+  } catch (e) {
+    bootError.value = e.message || '赛事加载失败，请重试'
   } finally {
     booting.value = false
   }
-})
+}
+onMounted(boot)
 </script>
 
 <template>
   <div class="container">
-    <h1>赛事报名</h1>
-    <p class="muted">
-      选择赛事后，按该赛事支持的方式（{{ allowedTypes.map((t) => REGISTRATION_LABEL[t]).join(' / ') }}）提交报名，资料提交后由管理员审核。
-    </p>
+    <PageHeading title="赛事报名" description="整队出征，或以个人身份加入。填写参赛信息，准备你的下一场精彩对局。" icon="flag" />
+    <div class="signup-progress" aria-label="报名流程"><span class="current"><b>1</b>填写参赛信息</span><i></i><span><b>2</b>提交报名</span><i></i><span><b>3</b>等待审核</span></div>
 
     <div class="signup-grid">
-      <div class="panel">
+      <div class="panel signup-form">
+        <div class="form-heading"><h2>填写报名资料</h2><span>* 为必填项</span></div>
         <Spinner v-if="booting" label="加载中" />
-        <div v-else-if="!openTournaments.length" class="empty-note">
-          当前没有正在报名的赛事。
-        </div>
+        <div v-else-if="bootError" class="empty-note" role="alert"><Icon name="flag" :size="32" /><h3>赛事暂时未能加载</h3><p>{{ bootError }}</p><button class="btn" @click="boot">重新加载</button></div>
+        <div v-else-if="!openTournaments.length" class="empty-note"><Icon name="clock" :size="32" /><h3>等待下一次集结</h3><p>当前没有开放报名的赛事，可以先去赛事浏览页查看比赛进展。</p><RouterLink to="/browse" class="btn ghost">查看全部赛事</RouterLink></div>
         <template v-else>
           <div class="field">
-            <label>选择赛事 *</label>
-            <select v-model="selectedTid">
+            <label for="signup-field-1">选择赛事 *</label>
+            <select id="signup-field-1" v-model="selectedTid">
               <option v-for="t in openTournaments" :key="t.id" :value="t.id">{{ t.name }}</option>
             </select>
           </div>
@@ -190,8 +197,8 @@ onMounted(async () => {
           </div>
 
           <div class="field">
-            <label>联系方式 *</label>
-            <input v-model="form.contact" maxlength="128" placeholder="QQ / 微信 / 手机号，便于联系" />
+            <label for="signup-field-2">联系方式 *</label>
+            <input id="signup-field-2" v-model="form.contact" maxlength="128" placeholder="QQ / 微信 / 手机号，便于联系" />
           </div>
 
           <div class="field">
@@ -202,10 +209,11 @@ onMounted(async () => {
                 :key="rt"
                 type="button"
                 class="type-option"
+                :aria-pressed="form.registrationType === rt"
                 :class="{ active: form.registrationType === rt }"
                 @click="form.registrationType = rt"
               >
-                {{ REGISTRATION_LABEL[rt] || rt }}
+                <Icon :name="rt === 'team' ? 'users' : 'user'" :size="20" />{{ REGISTRATION_LABEL[rt] || rt }}
               </button>
             </div>
             <p v-if="allowedTypes.length === 1" class="muted tiny rule-note">
@@ -215,12 +223,12 @@ onMounted(async () => {
 
           <template v-if="!isSolo">
             <div class="field">
-              <label>队伍名称 *</label>
-              <input v-model="form.name" maxlength="128" placeholder="例如：烈焰星辰" />
+              <label for="signup-field-3">队伍名称 *</label>
+              <input id="signup-field-3" v-model="form.name" maxlength="128" placeholder="例如：烈焰星辰" />
             </div>
             <div class="field">
-              <label>队长 *</label>
-              <input v-model="form.captain" maxlength="64" placeholder="队长称呼" />
+              <label for="signup-field-4">队长 *</label>
+              <input id="signup-field-4" v-model="form.captain" maxlength="64" placeholder="队长称呼" />
             </div>
 
             <h3 class="roster-title">参赛选手称呼及职业 *</h3>
@@ -230,12 +238,12 @@ onMounted(async () => {
           <template v-else>
             <div class="solo-panel">
               <div class="field">
-                <label>称呼 *</label>
-                <input v-model="form.soloNickname" maxlength="64" placeholder="填写个人报名称呼" />
+                <label for="signup-field-5">称呼 *</label>
+                <input id="signup-field-5" v-model="form.soloNickname" maxlength="64" placeholder="填写个人报名称呼" />
               </div>
               <div class="field" style="margin-bottom: 0">
-                <label>职业 *</label>
-                <select v-model="form.soloProfession">
+                <label for="signup-field-6">职业 *</label>
+                <select id="signup-field-6" v-model="form.soloProfession">
                   <option v-for="prof in allowedProfessions" :key="prof" :value="prof">{{ prof }}</option>
                 </select>
                 <p v-if="allowedProfessions.length < PROFESSIONS.length" class="muted tiny rule-note">
@@ -246,8 +254,8 @@ onMounted(async () => {
           </template>
 
           <div class="field" style="margin-top: 1.2rem">
-            <label>{{ isSolo ? '个人宣言' : '作战宣言' }}</label>
-            <textarea
+            <label for="signup-field-7">{{ isSolo ? '个人宣言' : '作战宣言' }}</label>
+            <textarea id="signup-field-7"
               v-model="form.declaration"
               maxlength="2000"
               :placeholder="isSolo ? '写点你的报名介绍或想说的话' : '喊出你们的口号！'"
@@ -261,8 +269,9 @@ onMounted(async () => {
       </div>
 
       <aside class="side">
+        <div class="signup-side-banner"><img :src="teamBattle" alt="百变兵团战队集结" /><div><Icon name="users" :size="20" /><strong>每一位战友，都很重要</strong><p>资料提交后，可在下方关注审核结果。</p></div></div>
         <div class="panel">
-          <h3>我的报名</h3>
+          <div class="my-registration-heading"><h3>我的报名</h3><span>{{ myTeams.length }}</span></div>
           <Spinner v-if="booting && !myTeams.length" label="加载中" />
           <p v-else-if="!myTeams.length" class="muted">你还没有提交任何报名。</p>
           <div v-for="t in myTeams" :key="t.id" class="my-team">
@@ -313,139 +322,54 @@ onMounted(async () => {
 </template>
 
 <style scoped>
-.signup-grid { display: grid; grid-template-columns: minmax(0, 1.6fr) minmax(300px, 1fr); gap: 1.5rem; margin-top: 1.5rem; align-items: start; }
-.signup-grid > .panel,
-.side .panel {
-  animation: panel-lift 0.34s var(--ease-soft) both;
-}
-.side .panel {
-  animation-delay: 80ms;
-}
-.roster-title { margin-top: 1.5rem; }
-.empty-note { color: var(--muted); padding: 1rem 0; text-align: center; }
-.deadline-note {
-  background: rgba(255, 149, 0, 0.1);
-  border: 1px solid rgba(255, 149, 0, 0.28);
-  color: #a85e00;
-  border-radius: var(--radius-sm);
-  padding: 0.6rem 0.85rem;
-  font-size: 0.88rem;
-  margin-bottom: 1.1rem;
-}
-.deadline-note .cd { margin-left: 0.6rem; font-weight: 700; }
-.type-switch {
-  display: grid;
-  grid-template-columns: repeat(2, 1fr);
-  gap: 0.6rem;
-}
-.type-switch.single {
-  grid-template-columns: 1fr;
-}
-.rule-note {
-  margin: 0.4rem 0 0;
-  font-size: 0.78rem;
-}
-.type-option {
-  min-height: 44px;
-  border-radius: 14px;
-  border: 1px solid var(--border);
-  background: var(--panel);
-  color: var(--muted);
-  font-size: 0.92rem;
-  font-weight: 600;
-  cursor: pointer;
-  transition: border-color 0.18s var(--ease-out), background 0.18s var(--ease-out), color 0.18s var(--ease-out), transform 0.18s var(--ease-out), box-shadow 0.18s var(--ease-out);
-}
-.type-option:hover {
-  transform: translateY(-1px);
-  border-color: rgba(0, 113, 227, 0.28);
-}
-.type-option.active {
-  color: var(--primary);
-  background: rgba(0, 113, 227, 0.08);
-  border-color: rgba(0, 113, 227, 0.34);
-  box-shadow: 0 0 0 3px rgba(0, 113, 227, 0.08);
-}
-.solo-panel {
-  padding: 1rem;
-  border-radius: var(--radius);
-  border: 1px solid var(--border);
-  background: linear-gradient(180deg, rgba(0, 113, 227, 0.04), rgba(0, 113, 227, 0.01));
-}
-.my-team { border-top: 1px solid var(--border); padding: 0.9rem 0; }
-.my-team:first-of-type { border-top: none; }
-.small { font-size: 0.8rem; margin: 0.3rem 0; }
-.tour-tag { color: var(--primary); font-weight: 600; }
-.prof-mini { display: flex; gap: 0.35rem; flex-wrap: wrap; margin: 0.4rem 0; }
-.chip.sm { font-size: 0.72rem; padding: 0.12rem 0.45rem; }
-.type-chip { color: var(--primary); background: rgba(0, 113, 227, 0.08); border-color: rgba(0, 113, 227, 0.12); }
-.group-modal {
-  width: min(560px, 100%);
-  padding: 1rem;
-}
-.group-head {
-  align-items: flex-start;
-  padding: 0.35rem 0.35rem 0.85rem;
-}
-.group-head h2 {
-  margin-bottom: 0.2rem;
-}
-.group-head p {
-  margin: 0;
-}
-.group-qrcode {
-  display: block;
-  width: 100%;
-  max-height: 76vh;
-  object-fit: contain;
-  border-radius: 16px;
-}
-
-@keyframes panel-lift {
-  from {
-    opacity: 0;
-    transform: translateY(10px);
-  }
-  to {
-    opacity: 1;
-    transform: none;
-  }
-}
-
-@media (max-width: 880px) {
-  .signup-grid { grid-template-columns: 1fr; }
-  .side { order: -1; }
-}
-
-@media (max-width: 560px) {
-  .type-switch {
-    grid-template-columns: 1fr;
-  }
-  .deadline-note {
-    line-height: 1.65;
-  }
-  .deadline-note .cd {
-    display: block;
-    margin: 0.25rem 0 0;
-  }
-  .my-team .row {
-    align-items: flex-start;
-  }
-  .my-team .row strong {
-    flex: 1 1 100%;
-  }
-  .my-team .btn {
-    width: 100%;
-  }
-  .group-modal {
-    padding: 0.8rem;
-  }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .signup-grid > .panel,
-  .side .panel {
-    animation: none;
-  }
-}
+.signup-progress { display: flex; align-items: center; gap: 1.4rem; padding: 1rem 1.5rem; background: #e8edf2; border-radius: 9px; margin-bottom: 1.5rem; color: #667484; font-size: .82rem; }
+.signup-progress span { display: flex; align-items: center; gap: .6rem; white-space: nowrap; }
+.signup-progress b { width: 25px; height: 25px; border-radius: 50%; background: #d7dee6; display: grid; place-items: center; font-size: .73rem; }
+.signup-progress .current { color: var(--primary); font-weight: 650; }
+.signup-progress .current b { background: var(--primary); color: #fff; }
+.signup-progress i { width: 50px; height: 1px; background: #c8d1da; }
+.signup-grid { display: grid; grid-template-columns: minmax(0,1.75fr) minmax(300px,1fr); gap: 1.5rem; align-items: start; }
+.signup-form { padding: 1.75rem; }
+.form-heading { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.6rem; padding-bottom: 1rem; border-bottom: 1px solid var(--border); }
+.form-heading h2 { font-size: 1.15rem; margin: 0; }
+.form-heading > span { color: var(--muted); font-size: .73rem; }
+.roster-title { margin: 1.7rem 0 1rem; font-size: 1rem; }
+.empty-note { text-align: center; padding: 2.2rem 0; color: var(--muted); }
+.empty-note .ui-icon { color: var(--primary); margin-bottom: 1rem; }
+.empty-note p { margin-bottom: 1.25rem; }
+.deadline-note { background: #fff3e3; color: #855216; border-radius: 6px; padding: .65rem .85rem; font-size: .78rem; margin: -.4rem 0 1.5rem; }
+.deadline-note .cd { display: inline-block; margin-left: .5rem; font-weight: 650; }
+.type-switch { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: .7rem; }
+.type-switch.single { grid-template-columns: 1fr; }
+.type-option { display: flex; align-items: center; justify-content: center; gap: .6rem; min-height: 57px; border-radius: 7px; border: 1px solid var(--border-strong); background: #fff; color: var(--muted); font-size: .89rem; font-weight: 650; cursor: pointer; transition: border-color .18s, background .18s; }
+.type-option:hover { border-color: var(--primary); }
+.type-option.active { color: var(--primary); background: var(--accent-soft); border-color: var(--primary); }
+.rule-note { margin: .5rem 0 0; font-size: .75rem; }
+.solo-panel { padding: 1.2rem; border-radius: 8px; background: var(--panel-2); }
+.signup-side-banner { border-radius: 10px; overflow: hidden; margin-bottom: 1.2rem; background: var(--dark); color: #fff; }
+.signup-side-banner img { width: 100%; height: 160px; object-fit: cover; display: block; }
+.signup-side-banner > div { padding: 1.15rem 1.3rem; }
+.signup-side-banner .ui-icon { color: var(--accent-2); margin-right: .5rem; }
+.signup-side-banner strong { font-size: .92rem; }
+.signup-side-banner p { color: #b6c5d3; margin: .5rem 0 0; font-size: .77rem; }
+.my-registration-heading { display: flex; align-items: center; justify-content: space-between; margin-bottom: 1rem; }
+.my-registration-heading h3 { margin: 0; }
+.my-registration-heading > span { border-radius: 4px; padding: .1rem .45rem; color: #566373; background: var(--bg-2); font-size: .72rem; }
+.my-team { border-top: 1px solid var(--border); padding: 1.15rem 0; }
+.my-team:first-of-type { border-top: 0; }
+.my-team:last-child { padding-bottom: 0; }
+.my-team .row strong { flex: 1 1 100%; }
+.my-team .btn.danger { color: var(--danger); background: #ffedf0; font-size: .72rem; }
+.small { font-size: .76rem; margin: .35rem 0; overflow-wrap: anywhere; }
+.tour-tag { color: var(--primary); font-weight: 550; margin-top: .6rem; }
+.prof-mini { display: flex; gap: .35rem; flex-wrap: wrap; margin: .6rem 0; }
+.chip.sm { font-size: .7rem; padding: .1rem .4rem; }
+.type-chip { color: #526679; background: #edf1f5; border: none; }
+.group-modal { width: min(560px,100%); }
+.group-head { align-items: flex-start; padding-bottom: 1rem; }
+.group-head h2 { margin-bottom: .4rem; }
+.group-head p { margin: 0; font-size: .83rem; }
+.group-qrcode { display: block; width: 100%; max-height: 65dvh; object-fit: contain; border-radius: 8px; }
+@media(max-width:950px) { .signup-grid { grid-template-columns: minmax(0,1.5fr) minmax(260px,1fr); gap: 1rem; } .signup-form { padding: 1.3rem; } }
+@media(max-width:760px) { .signup-grid { grid-template-columns: 1fr; } .signup-progress { padding: .8rem; gap: .5rem; font-size: .65rem; justify-content: space-between; } .signup-progress span { gap: .3rem; } .signup-progress i { flex: 1; width: auto; min-width: 6px; } .signup-progress b { width: 21px; height: 21px; font-size: .65rem; } .signup-form { padding: 1.15rem; } .side { order: 1; } .signup-side-banner { display: none; } .type-option { min-height: 50px; font-size: .8rem; } .deadline-note { line-height: 1.8; } .deadline-note .cd { display: block; margin: .15rem 0 0; } }
 </style>

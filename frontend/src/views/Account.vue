@@ -2,6 +2,8 @@
 import { ref } from 'vue'
 import { useAuthStore } from '../stores/auth'
 import { toast } from '../toast'
+import PageHeading from '../components/PageHeading.vue'
+import Icon from '../components/Icon.vue'
 
 const auth = useAuthStore()
 
@@ -32,8 +34,7 @@ async function submit() {
 
 <template>
   <div class="container account-page">
-    <h1>账号设置</h1>
-    <p class="muted">管理你的登录信息与安全设置。</p>
+    <PageHeading title="账号设置" description="管理你的选手账号与登录安全。" icon="user" />
 
     <div class="account-grid">
       <div class="panel info-card">
@@ -46,22 +47,24 @@ async function submit() {
             {{ auth.isAdmin ? '管理员' : '普通用户' }}
           </span>
         </div>
+        <p class="profile-note">你的专属选手账号<br />报名记录与参赛信息将关联此账号。</p>
       </div>
 
-      <div class="panel">
-        <h3>修改密码</h3>
+      <div class="panel password-panel">
+        <div class="password-heading"><Icon name="lock" :size="21" /><h3>修改登录密码</h3></div>
+        <p class="muted password-hint">使用至少 6 位的新密码，保护你的参赛信息。</p>
         <form @submit.prevent="submit">
           <div class="field">
-            <label>当前密码</label>
-            <input v-model="oldPassword" type="password" autocomplete="current-password" placeholder="请输入当前密码" />
+            <label for="oldPassword">当前密码</label>
+            <input id="oldPassword" required v-model="oldPassword" type="password" autocomplete="current-password" placeholder="请输入当前密码" />
           </div>
           <div class="field">
-            <label>新密码（至少 6 位）</label>
-            <input v-model="newPassword" type="password" autocomplete="new-password" placeholder="设置新密码" />
+            <label for="newPassword">新密码（至少 6 位）</label>
+            <input id="newPassword" required v-model="newPassword" type="password" autocomplete="new-password" placeholder="设置新密码" />
           </div>
           <div class="field">
-            <label>确认新密码</label>
-            <input v-model="confirmPassword" type="password" autocomplete="new-password" placeholder="再次输入新密码" />
+            <label for="confirmPassword">确认新密码</label>
+            <input id="confirmPassword" required v-model="confirmPassword" type="password" autocomplete="new-password" placeholder="再次输入新密码" />
           </div>
           <button class="btn" :disabled="loading">
             {{ loading ? '提交中…' : '确认修改' }}
@@ -73,37 +76,16 @@ async function submit() {
 </template>
 
 <style scoped>
-.account-page { max-width: 820px; }
-.account-grid { display: grid; grid-template-columns: 1fr; gap: 1.25rem; margin-top: 1.5rem; }
-.info-card { display: flex; align-items: center; gap: 1.1rem; }
-.avatar {
-  width: 56px; height: 56px; border-radius: 50%;
-  display: flex; align-items: center; justify-content: center;
-  font-size: 1.5rem; font-weight: 700; color: #fff;
-  background: linear-gradient(135deg, var(--primary), #59a7ff);
-  flex: none;
-  animation: avatar-in 0.34s var(--ease-soft) both;
-}
-.avatar.admin { background: linear-gradient(135deg, #ff7a3c, var(--accent-2)); }
-.uname { font-size: 1.2rem; font-weight: 600; margin-bottom: 0.3rem; }
-
-@keyframes avatar-in {
-  from { opacity: 0; transform: scale(0.9); }
-  to { opacity: 1; transform: none; }
-}
-
-@media (max-width: 520px) {
-  .info-card {
-    align-items: flex-start;
-  }
-  .account-page .btn {
-    width: 100%;
-  }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .avatar {
-    animation: none;
-  }
-}
+.account-page { max-width: 1050px; }
+.account-grid { display: grid; grid-template-columns: 280px minmax(0,1fr); gap: 1.5rem; align-items: start; }
+.info-card { padding: 2rem 1.6rem; text-align: center; background: var(--dark); border: none; color: #fff; }
+.avatar { width: 68px; height: 68px; margin: 0 auto 1rem; border-radius: 12px; display: grid; place-items: center; color: #172330; background: #ffad72; font-weight: 800; font-size: 1.8rem; }
+.uname { font-size: 1.25rem; font-weight: 700; margin-bottom: .6rem; overflow-wrap: anywhere; }
+.profile-note { font-size: .78rem; line-height: 1.9; color: #b6c5d3; padding-top: 1.3rem; border-top: 1px solid #ffffff20; margin: 1.5rem 0 0; }
+.password-heading { display: flex; align-items: center; gap: .65rem; }
+.password-heading .ui-icon { color: var(--primary); }
+.password-heading h3 { margin: 0; font-size: 1.2rem; }
+.password-hint { font-size: .82rem; margin: .7rem 0 1.6rem; }
+.password-panel { padding: 2rem; }
+@media(max-width:720px) { .account-grid { grid-template-columns: 1fr; } .info-card { display: flex; flex-wrap: wrap; align-items: center; gap: 1rem; text-align: left; padding: 1.25rem; } .avatar { margin: 0; width: 52px; height: 52px; } .profile-note { width: 100%; margin-top: .2rem; padding-top: .8rem; } .password-panel { padding: 1.25rem; } .password-panel .btn { width: 100%; } }
 </style>
